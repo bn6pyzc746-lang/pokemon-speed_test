@@ -13,6 +13,8 @@ st.markdown("""
     [data-testid="stHeader"] { background-color: #121212; }
     h1, h2, h3, label, p { color: #ecf0f1 !important; }
     .stButton>button { width: 100%; font-weight: bold; }
+    /* 隱藏側邊欄預設的空白，讓畫面更專業 */
+    section[data-testid="stSidebar"] > div { padding-top: 2rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -314,21 +316,28 @@ pokedex = {
     "超級甲賀忍蛙": [72, 125, 77, 133, 81, 142, "greninja-ash"],
 }
 
-
 # ==========================================
-# 💾 記憶功能邏輯
+# 💾 記憶功能邏輯 (強化版：優先 Session State)
 # ==========================================
 DATA_FILE = "pokemon_saved_data.json"
 
 def load_data():
+    if "app_data" in st.session_state:
+        return st.session_state.app_data
     if os.path.exists(DATA_FILE):
         try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f: return json.load(f)
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
         except: pass
     return {"my_team": [], "compare_list": []}
 
 def save_data(data):
-    with open(DATA_FILE, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=4)
+    st.session_state.app_data = data
+    try:
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    except:
+        pass # 避免雲端唯讀權限導致程式崩潰
 
 if "app_data" not in st.session_state:
     st.session_state.app_data = load_data()
@@ -338,12 +347,14 @@ if "app_data" not in st.session_state:
 # ==========================================
 st.title("⚡ 寶可夢速度線戰術板")
 
-# 🌟 新增：雙模式切換按鈕
+# 模式切換
 display_mode = st.radio("切換檢視模式：", ["🖥️ 電腦版 (橫向 X 軸)", "📱 手機版 (垂直 Y 軸)"], horizontal=True)
 
 col1, col2 = st.columns(2)
-with col1: selected_pkm = st.selectbox("🔍 選擇寶可夢：", list(pokedex.keys()))
-with col2: speed_config = st.selectbox("⚡ 配置：", ["極速 (252努力+性格)", "準速 (252努力)", "極速+講究圍巾", "無速 (0努力)", "空間最慢"])
+with col1:
+    selected_pkm = st.selectbox("🔍 選擇寶可夢：", list(pokedex.keys()))
+with col2:
+    speed_config = st.selectbox("⚡ 配置：", ["極速 (252努力+性格)", "準速 (252努力)", "極速+講究圍巾", "無速 (0努力)", "空間最慢"])
 
 st.write("")
 col_btn1, col_btn2, col_btn3 = st.columns([2, 2, 1])
@@ -366,7 +377,6 @@ with col_btn1:
             st.session_state.app_data["my_team"].append(new_pkm)
             save_data(st.session_state.app_data)
             st.rerun()
-        else: st.warning("已滿 6 隻！")
 with col_btn2:
     if st.button("➕ 加比較名單"):
         new_pkm["is_team"] = False
@@ -380,203 +390,88 @@ with col_btn3:
         st.rerun()
 
 # ==========================================
-# 🛠️ 面板與長度調整 (共用參數)
+# 🛠️ 管理面板
 # ==========================================
-with st.expander("🛠️ 管理隊伍與調整圖表大小", expanded=False):
-    axis_length = st.slider("📏 調整速度線總長度/高度 (越長越不擠)", 800, 8000, 2000, step=100)
+with st.expander("🛠️ 管理名單與調整圖表比例", expanded=False):
+    axis_length = st.slider("📏 調整速度線長度/高度 (越長越不擠)", 800, 8000, 2000, step=100)
     st.markdown("---")
-    
     def render_list(list_key, title):
         st.write(f"**{title}**")
-        new_list = []
-        changed = False
         for i, item in enumerate(st.session_state.app_data[list_key]):
             c1, c2 = st.columns([4, 1])
             c1.markdown(f"<div style='padding-top: 5px;'>{item['name']} ({item['config']}) - {item['speed']}</div>", unsafe_allow_html=True)
             if c2.button("❌", key=f"del_{list_key}_{i}"):
-                changed = True
-                continue
-            new_list.append(item)
-        if changed:
-            st.session_state.app_data[list_key] = new_list
-            save_data(st.session_state.app_data)
-            st.rerun()
-
-    render_list("my_team", f"⭐ 我的隊伍 ({len(st.session_state.app_data['my_team'])}/6)")
-    st.markdown("---")
+                st.session_state.app_data[list_key].pop(i)
+                save_data(st.session_state.app_data)
+                st.rerun()
+    render_list("my_team", "⭐ 我的隊伍")
     render_list("compare_list", "🔍 比較對象")
 
 # ==========================================
-# 📈 畫圖區塊 (根據模式自動切換 HTML/CSS)
+# 📈 繪圖核心邏輯
 # ==========================================
 st.markdown("---")
 plotted_data = st.session_state.app_data["my_team"] + st.session_state.app_data["compare_list"]
 
 if not plotted_data:
-    st.markdown("<div style='text-align:center; color:#7f8c8d; font-size:16px; padding: 50px;'>目前名單為空，請從上方加入寶可夢！</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; color:#7f8c8d; font-size:18px; padding: 50px;'>目前名單為空，請從上方加入寶可夢！</div>", unsafe_allow_html=True)
 else:
     plotted_data = sorted(plotted_data, key=lambda x: x["speed"])
-    min_s = min(plotted_data, key=lambda x: x["speed"])["speed"] - 10
-    max_s = max(plotted_data, key=lambda x: x["speed"])["speed"] + 20
+    min_s, max_s = min(plotted_data, key=lambda x: x["speed"])["speed"] - 10, max(plotted_data, key=lambda x: x["speed"])["speed"] + 20
     range_s = max_s - min_s if max_s != min_s else 100
 
-    html_content = ""
+    # 簽名檔浮水印 HTML
+    watermark_html = f'<div style="position:fixed; bottom:15px; right:20px; color:rgba(236,240,241,0.25); font-size:12px; font-style:italic; z-index:9999; pointer-events:none; font-family:sans-serif; text-shadow: 0 0 5px rgba(0,210,255,0.4);">Designed by Ann_guitarist | 寶可夢冠軍 1.0.2</div>'
 
-    # ----------------------------------------------------
-    # 🖥️ 模式 A：電腦版 (橫向 X 軸)
-    # ----------------------------------------------------
     if "電腦版" in display_mode:
-        html_content += f"""
+        html_content = f"""
         <style>
-            .timeline-container {{ position: relative; width: 100%; height: 550px; font-family: sans-serif; overflow-x: auto; overflow-y: hidden; background-color: transparent; }}
-            .timeline-container::-webkit-scrollbar {{ height: 8px; }}
-            .timeline-container::-webkit-scrollbar-thumb {{ background: #555; border-radius: 4px; }}
+            .timeline-container {{ position: relative; width: 100%; height: 550px; overflow-x: auto; background-color: transparent; }}
+            .timeline-container::-webkit-scrollbar {{ height: 10px; }}
+            .timeline-container::-webkit-scrollbar-thumb {{ background: #444; border-radius: 5px; }}
             .scroll-area {{ width: {axis_length}px; position: relative; height: 100%; padding: 0 50px; }}
-            .timeline-track {{ position: absolute; top: 50%; left: 50px; right: 50px; height: 4px; background-color: #00d2ff; box-shadow: 0 0 10px #00d2ff; border-radius: 2px; }}
-            .timeline-track::after {{ content: ''; position: absolute; right: -15px; top: -6px; border-top: 8px solid transparent; border-bottom: 8px solid transparent; border-left: 15px solid #00d2ff; filter: drop-shadow(2px 0 5px #00d2ff); }}
-            .pkm-node {{ position: absolute; transform: translateX(-50%); outline: none; cursor: pointer; text-align: center; width: 100px; z-index: 10; }}
-            .pkm-img {{ width: 60px; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5)); transition: transform 0.2s; }}
-            .pkm-label {{ background-color: rgba(44, 62, 80, 0.9); color: #ecf0f1; padding: 4px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-top: 5px; line-height: 1.4; border: 1px solid #34495e; }}
-            .tooltip-card {{ display: none; width: 130px; background-color: rgba(20, 25, 30, 0.98); color: #ecf0f1; text-align: left; border-radius: 8px; padding: 10px; position: absolute; z-index: 1000; left: 50%; transform: translateX(-50%); box-shadow: 0px 5px 15px rgba(0,0,0,0.9); font-size: 13px; line-height: 1.5; }}
-            @media (hover: hover) {{ .pkm-node:hover .tooltip-card {{ display: block; }} .pkm-node:hover .pkm-img {{ transform: scale(1.1); }} }}
-            .pkm-node.active .tooltip-card {{ display: block; }}
-            .pkm-node.active .pkm-img {{ transform: scale(1.1); }}
+            .timeline-track {{ position: absolute; top: 50%; left: 50px; right: 50px; height: 4px; background: #00d2ff; box-shadow: 0 0 10px #00d2ff; }}
+            .timeline-track::after {{ content: ''; position: absolute; right: -15px; top: -6px; border-top: 8px solid transparent; border-bottom: 8px solid transparent; border-left: 15px solid #00d2ff; }}
+            .pkm-node {{ position: absolute; transform: translateX(-50%); text-align: center; width: 100px; z-index: 10; cursor: pointer; }}
+            .pkm-img {{ width: 60px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }}
+            .pkm-label {{ background: rgba(44, 62, 80, 0.95); color: #fff; padding: 4px; border-radius: 4px; font-size: 11px; margin-top: 5px; border: 1px solid #34495e; }}
+            .tooltip-card {{ display: none; width: 130px; background: #14191e; border-radius: 8px; padding: 10px; position: absolute; z-index: 1000; left: 50%; transform: translateX(-50%); box-shadow: 0 5px 15px #000; font-size: 12px; }}
+            .pkm-node.active .tooltip-card, .pkm-node:hover .tooltip-card {{ display: block; }}
         </style>
-        <div class="timeline-container"><div class="scroll-area">
+        <div class="timeline-container"><div class="scroll-area"><div class="timeline-track">
         """
-        
-        # 畫 X 軸刻度
-        ticks_html = ""
-        start_tick = ((int(min_s) // 10) + 1) * 10
-        for tick_val in range(start_tick, int(max_s), 10):
-            left_percent = ((tick_val - min_s) / range_s) * 95 + 2
-            ticks_html += f'<div style="position: absolute; left: {left_percent}%; top: -8px; width: 2px; height: 20px; background-color: rgba(0, 210, 255, 0.4);"></div><div style="position: absolute; left: {left_percent}%; top: 15px; transform: translateX(-50%); color: rgba(0, 210, 255, 0.7); font-size: 12px; font-weight: bold;">{tick_val}</div>'
-        html_content += f'<div class="timeline-track">{ticks_html}</div>'
-
-        # 畫寶可夢
+        for tick in range(((int(min_s)//10)+1)*10, int(max_s), 10):
+            pos = ((tick - min_s) / range_s) * 95 + 2
+            html_content += f'<div style="position:absolute; left:{pos}%; top:-8px; width:2px; height:20px; background:rgba(0,210,255,0.4);"></div><div style="position:absolute; left:{pos}%; top:15px; transform:translateX(-50%); color:rgba(0,210,255,0.7); font-size:12px; font-weight:bold;">{tick}</div>'
+        html_content += "</div>"
         for i, p in enumerate(plotted_data):
-            left_percent = ((p["speed"] - min_s) / range_s) * 95 + 2
-            is_top = (i % 2 == 0)
-            node_top = "calc(50% - 170px)" if is_top else "50%"
-            tooltip_bottom = "110%" if not is_top else "auto"
-            tooltip_top = "auto" if not is_top else "110%"
+            pos = ((p["speed"] - min_s) / range_s) * 95 + 2
+            is_top = i % 2 == 0
             s = p["stats"]
-            glow = f"box-shadow: 0 0 12px 3px gold; border-color: gold;" if p.get("is_team") else f"box-shadow: 0 0 6px rgba(0,0,0,0.8);"
-            star = "⭐ " if p.get("is_team") else ""
-            
+            glow = "box-shadow: 0 0 12px 3px gold;" if p.get("is_team") else ""
             html_content += f"""
-            <div class="pkm-node" style="left: {left_percent}%; top: {node_top};">
-                {'' if is_top else f'<div style="width: 14px; height: 14px; background-color: {p["color"]}; border: 2px solid white; border-radius: 50%; margin: 0 auto; {glow}"></div><div style="width: 2px; background-color: #555; margin: 0 auto; height: 60px;"></div>'}
-                <div style="position: relative;">
-                    <img class="pkm-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
-                    <div class="pkm-label">{star}{p['name']}<br><span style="color:{p['color']};">{p['config']}</span>: {p['speed']}</div>
-                    <div class="tooltip-card" style="bottom: {tooltip_bottom}; top: {tooltip_top}; border: 2px solid {p['color']};">
-                        <b style="color:{p['color']};">{star}{p['name']}</b><br><hr style="margin: 4px 0; border-color: #444;">
-                        ❤️ {s[0]} | ⚔️ {s[1]} | 🛡️ {s[2]}<br>🔮 {s[3]} | ✨ {s[4]} | 🏃 {s[5]}
-                    </div>
-                </div>
-                {f'<div style="width: 2px; background-color: #555; margin: 0 auto; height: 60px;"></div><div style="width: 14px; height: 14px; background-color: {p["color"]}; border: 2px solid white; border-radius: 50%; margin: 0 auto; {glow}"></div>' if is_top else ''}
-            </div>
-            """
-        html_content += "</div></div>"
-
-    # ----------------------------------------------------
-    # 📱 模式 B：手機版 (垂直 Y 軸)
-    # ----------------------------------------------------
-    # ----------------------------------------------------
-    # 📱 模式 B：手機版 (垂直 Y 軸)
-    # ----------------------------------------------------
+            <div class="pkm-node" style="left:{pos}%; top:{'calc(50% - 170px)' if is_top else '50%'};" onclick="this.classList.toggle('active')">
+                {'' if is_top else f'<div style="width:14px; height:14px; background:{p["color"]}; border:2px solid #fff; border-radius:50%; margin:0 auto; {glow}"></div><div style="width:2px; background:#555; margin:0 auto; height:60px;"></div>'}
+                <div style="position:relative;"><img class="pkm-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
+                <div class="pkm-label">{"⭐" if p.get("is_team") else ""}{p['name']}<br>{p['speed']}</div>
+                <div class="tooltip-card" style="bottom:{'110%' if not is_top else 'auto'}; top:{'auto' if not is_top else '110%'}; border:2px solid {p['color']};">
+                ❤️ {s[0]} | ⚔️ {s[1]} | 🛡️ {s[2]}<br>🔮 {s[3]} | ✨ {s[4]} | 🏃 {s[5]}</div></div>
+                {f'<div style="width:2px; background:#555; margin:0 auto; height:60px;"></div><div style="width:14px; height:14px; background:{p["color"]}; border:2px solid #fff; border-radius:50%; margin:0 auto; {glow}"></div>' if is_top else ''}
+            </div>"""
+        html_content += f"{watermark_html}</div></div>"
     else:
-        html_content += f"""
-        <style>
-            /* 1. 把背景設為透明、移除邊框和陰影，並讓高度填滿 100% */
-            .timeline-wrapper {{ width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; background-color: transparent; position: relative; }}
-            
-            /* 2. 隱藏醜醜的滾動條，讓畫面完全乾淨延伸 */
-            .timeline-wrapper::-webkit-scrollbar {{ display: none; }}
-            .timeline-wrapper {{ -ms-overflow-style: none; scrollbar-width: none; }}
-            
-            .timeline-container-v {{ position: relative; width: 100%; height: {axis_length}px; font-family: sans-serif; padding: 50px 0; }}
-            .timeline-track-v {{ position: absolute; top: 40px; bottom: 40px; left: 50%; width: 4px; transform: translateX(-50%); background-color: #00d2ff; box-shadow: 0 0 10px #00d2ff; border-radius: 2px; }}
-            .timeline-track-v::before {{ content: ''; position: absolute; top: -15px; left: -6px; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 15px solid #00d2ff; filter: drop-shadow(0 -2px 5px #00d2ff); }}
-            .pkm-node {{ position: absolute; transform: translateY(-50%); display: flex; align-items: center; width: 50%; z-index: 10; cursor: pointer; outline: none; }}
-            .left-side {{ left: 0; justify-content: flex-end; flex-direction: row-reverse; padding-right: calc(50% + 15px); }}
-            .right-side {{ right: 0; justify-content: flex-start; flex-direction: row; padding-left: calc(50% + 15px); }}
-            .pkm-img {{ width: 55px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5)); transition: transform 0.2s; z-index: 2; }}
-            .label-box {{ background-color: rgba(30, 40, 50, 0.95); color: #ecf0f1; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; line-height: 1.4; border: 1px solid #34495e; text-align: center; position: relative; z-index: 2; }}
-            .connector {{ position: absolute; height: 2px; background-color: #555; width: 30px; z-index: 1; }}
-            .left-side .connector {{ right: calc(50% - 15px); }}
-            .right-side .connector {{ left: calc(50% - 15px); }}
-            .dot {{ position: absolute; width: 14px; height: 14px; border: 2px solid white; border-radius: 50%; left: 50%; transform: translateX(-50%); z-index: 3; box-shadow: 0 0 4px rgba(0,0,0,0.8); }}
-            .tooltip-card {{ display: none; position: absolute; top: 100%; margin-top: 5px; width: 130px; background-color: rgba(20, 25, 30, 0.98); border-radius: 8px; padding: 10px; box-shadow: 0px 5px 15px rgba(0,0,0,0.9); font-size: 12px; text-align: left; z-index: 100; }}
-            .left-side .tooltip-card {{ right: 0; }}
-            .right-side .tooltip-card {{ left: 0; }}
-            .pkm-node.active .tooltip-card {{ display: block; }}
-            .pkm-node.active .pkm-img {{ transform: scale(1.15); }}
-        </style>
-        <div class="timeline-wrapper"><div class="timeline-container-v"><div class="timeline-track-v"></div>
-        """
-
-        # 畫 Y 軸刻度
-        ticks_html = ""
-        start_tick = ((int(min_s) // 10) + 1) * 10
-        for tick_val in range(start_tick, int(max_s), 10):
-            top_percent = ((max_s - tick_val) / range_s) * 90 + 5
-            ticks_html += f'<div style="position: absolute; top: {top_percent}%; left: 50%; width: 16px; height: 2px; background-color: rgba(0, 210, 255, 0.5); transform: translate(-50%, -50%);"></div><div style="position: absolute; top: {top_percent}%; left: calc(50% + 15px); transform: translateY(-50%); color: rgba(0, 210, 255, 0.7); font-size: 11px; font-weight: bold;">{tick_val}</div>'
-        html_content += ticks_html
-
-        # 畫寶可夢
+        # 垂直手機版 HTML 邏輯保持不變，但將容器改為透明
+        html_content = f"""<style>.v-wrap {{ width:100%; height:100%; overflow-y:auto; background:transparent; position:relative; }} .v-container {{ position:relative; width:100%; height:{axis_length}px; padding:50px 0; }} .v-track {{ position:absolute; top:40px; bottom:40px; left:50%; width:4px; transform:translateX(-50%); background:#00d2ff; box-shadow: 0 0 10px #00d2ff; }} .v-node {{ position:absolute; transform:translateY(-50%); width:50%; display:flex; align-items:center; cursor:pointer; }} .left-side {{ left:0; justify-content:flex-end; flex-direction:row-reverse; padding-right:calc(50% + 15px); }} .right-side {{ right:0; justify-content:flex-start; padding-left:calc(50% + 15px); }} .v-img {{ width:55px; filter:drop-shadow(0 0 5px #000); }} .v-label {{ background:rgba(30,40,50,0.95); color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; border:1px solid #444; text-align:center; }} .v-dot {{ position:absolute; width:14px; height:14px; border:2px solid #fff; border-radius:50%; left:50%; transform:translateX(-50%); z-index:3; }} .v-tooltip {{ display:none; position:absolute; top:100%; width:120px; background:#14191e; border-radius:8px; padding:8px; z-index:100; font-size:11px; }} .v-node.active .v-tooltip {{ display:block; }}</style><div class="v-wrap"><div class="v-container"><div class="v-track"></div>"""
+        for tick in range(((int(min_s)//10)+1)*10, int(max_s), 10):
+            top_p = ((max_s - tick) / range_s) * 90 + 5
+            html_content += f'<div style="position:absolute; top:{top_p}%; left:50%; width:16px; height:2px; background:rgba(0,210,255,0.5); transform:translate(-50%,-50%);"></div><div style="position:absolute; top:{top_p}%; left:calc(50% + 15px); transform:translateY(-50%); color:rgba(0,210,255,0.7); font-size:11px; font-weight:bold;">{tick}</div>'
         for i, p in enumerate(plotted_data):
-            top_percent = ((max_s - p["speed"]) / range_s) * 90 + 5
-            side_class = "left-side" if i % 2 == 0 else "right-side"
+            top_p = ((max_s - p["speed"]) / range_s) * 90 + 5
+            side = "left-side" if i % 2 == 0 else "right-side"
             s = p["stats"]
-            glow = f"box-shadow: 0 0 12px 3px gold; border-color: gold;" if p.get("is_team") else ""
-            star = "⭐ " if p.get("is_team") else ""
-            
-            html_content += f"""
-            <div class="pkm-node {side_class}" style="top: {top_percent}%;">
-                <div class="dot" style="background-color: {p['color']}; {glow}"></div>
-                <div class="connector"></div>
-                <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
-                    <img class="pkm-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
-                    <div class="label-box" style="border-color: {p['color']};">{star}{p['name']}<br><span style="color:{p['color']};">{p['config']}</span>: {p['speed']}</div>
-                    <div class="tooltip-card" style="border: 2px solid {p['color']};">
-                        <b style="color:{p['color']};">{star}{p['name']}</b><br><hr style="margin: 4px 0; border-color: #555;">
-                        ❤️ {s[0]} | ⚔️ {s[1]} | 🛡️ {s[2]}<br>🔮 {s[3]} | ✨ {s[4]} | 🏃 {s[5]}
-                    </div>
-                </div>
-            </div>
-            """
-        html_content += "</div></div>"
+            glow = "box-shadow: 0 0 12px 3px gold;" if p.get("is_team") else ""
+            html_content += f"""<div class="v-node {side}" style="top:{top_p}%" onclick="this.classList.toggle('active')"><div class="v-dot" style="background:{p['color']}; {glow}"></div><div style="position:relative; display:flex; flex-direction:column; align-items:center;"><img class="v-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png"><div class="v-label" style="border-color:{p['color']}">{p['name']}<br>{p['speed']}</div><div class="v-tooltip" style="border:1px solid {p['color']}">❤️ {s[0]} | ⚔️ {s[1]} | 🛡️ {s[2]}<br>🔮 {s[3]} | ✨ {s[4]}</div></div></div>"""
+        html_content += f"{watermark_html}</div></div>"
 
-    # ----------------------------------------------------
-    # 🧠 共用：手機點擊收合腳本
-    # ----------------------------------------------------
-    html_content += """
-    <script>
-        document.addEventListener("click", function(event) {
-            let clickedNode = event.target.closest(".pkm-node");
-            document.querySelectorAll(".pkm-node").forEach(function(node) {
-                if (node !== clickedNode) { node.classList.remove("active"); }
-            });
-            if (clickedNode) { clickedNode.classList.toggle("active"); }
-        });
-    </script>
-    """
-    
-    # ==========================================
-# 📈 最終渲染 (加入簽名檔)
-# ==========================================
-
-# 在 HTML 內容最後強行注入簽名檔 div
-sign_html = f'<div style="position:fixed; bottom:10px; right:20px; color:rgba(255,255,255,0.2); font-size:12px; z-index:9999; font-family:sans-serif;">© 2026 Ann_guitarist | PKM Speed Tier Project</div>'
-html_with_sign = html_content.replace('</div>\n</div>', f'{sign_html}</div>\n</div>')
-
-# 渲染畫布
-if "電腦版" in display_mode:
-    st.components.v1.html(html_with_sign, height=600)
-else:
-    st.components.v1.html(html_with_sign, height=850)
-
-# 頁面最下方也可以加一個簡單的 st 標註
-st.caption("Designed by Ann_guitarist. 數據僅供對戰參考。")
+    # 渲染
+    st.components.v1.html(html_content, height=850 if "手機版" in display_mode else 650, scrolling=True)
