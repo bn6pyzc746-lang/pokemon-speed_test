@@ -3,19 +3,18 @@ import json
 import os
 
 # ==========================================
-# 🌟 新增：強制全螢幕寬版與全域暗黑模式
+# 🌟 全螢幕寬版與全域暗黑模式
 # ==========================================
 st.set_page_config(layout="wide", page_title="寶可夢速度線分析儀")
 
 st.markdown("""
 <style>
-    /* 強制將 Streamlit 整體背景變成暗黑模式 */
     [data-testid="stAppViewContainer"] { background-color: #121212; color: #ecf0f1; }
     [data-testid="stHeader"] { background-color: #121212; }
-    [data-testid="stSidebar"] { background-color: #1a1a1a; border-right: 1px solid #333; }
-    
-    /* 讓文字與輸入框在暗黑模式下保持可讀性 */
     h1, h2, h3, label, p { color: #ecf0f1 !important; }
+    
+    /* 優化手機端的按鈕大小 */
+    .stButton>button { width: 100%; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -289,7 +288,7 @@ pokedex = {
     "超級巨金怪": [80, 145, 150, 105, 110, 110, "metagross-mega"],
 
     # ----------------------------------------
-    # 🌟 寶可夢冠軍 (Z-A) 原創超級進化 (已更新真實截圖與推估數據)
+    # 🌟 寶可夢冠軍 (Z-A) 原創超級進化
     # ----------------------------------------
     "超級晶光花": [83, 90, 105, 150, 96, 101, "glimmora"],
     "超級寶石海星": [60, 100, 105, 130, 105, 120, "starmie"],
@@ -314,13 +313,18 @@ pokedex = {
     "超級妖火紅狐": [75, 69, 72, 159, 125, 134, "delphox"],
 }
 
-# --- 記憶功能：讀取本地檔案 ---
+# ==========================================
+# 💾 記憶功能邏輯
+# ==========================================
 DATA_FILE = "pokemon_saved_data.json"
 
 def load_data():
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            pass
     return {"my_team": [], "compare_list": []}
 
 def save_data(data):
@@ -330,77 +334,75 @@ def save_data(data):
 if "app_data" not in st.session_state:
     st.session_state.app_data = load_data()
 
-st.title("⚡ 寶可夢冠軍：個人化速度線對比")
-
 # ==========================================
-# 🎛️ UI 區塊修改：區分「我的隊伍」與「比較名單」
+# 🎮 手機版優化：控制面板
 # ==========================================
-col1, col2, col3, col4 = st.columns([3, 2, 3, 1])
+st.title("⚡ 寶可夢冠軍速度線")
 
+# 改用較少的欄位，讓手機版自動堆疊更美觀
+col1, col2 = st.columns(2)
 with col1:
-    selected_pkm = st.selectbox("🔍 搜尋並選擇寶可夢：", list(pokedex.keys()))
+    selected_pkm = st.selectbox("🔍 選擇寶可夢：", list(pokedex.keys()))
 with col2:
-    speed_config = st.selectbox("⚡ 配置：", ["極速 (加成性格, 252努力)", "準速 (無加成, 252努力)", "極速+講究圍巾", "無速 (0努力)"])
-with col3:
-    st.write("")
-    col3_1, col3_2 = st.columns(2)
-    
-    # 計算速度的共用邏輯
-    base_spe = pokedex[selected_pkm][5]
-    neutral = int(base_spe + 52)
-    final = int(neutral * 1.1) if "極速" in speed_config else neutral
-    if "圍巾" in speed_config: final = int(final * 1.5)
-    if "無速" in speed_config: final = int(base_spe + 20)
-    
-    # 顏色配置
-    badge_color = "#e67e22" if "極速" in speed_config else "#3498db" if "準速" in speed_config else "#9b59b6" if "圍巾" in speed_config else "#95a5a6"
-    
-    new_pkm = {
-        "name": selected_pkm, 
-        "config": speed_config.split(" ")[0], 
-        "speed": final, 
-        "color": badge_color, 
-        "stats": pokedex[selected_pkm]
-    }
+    speed_config = st.selectbox("⚡ 配置：", ["極速 (252努力+性格)", "準速 (252努力)", "極速+講究圍巾", "無速 (0努力)", "空間最慢"])
 
-    with col3_1:
-        if st.button("⭐ 加入我的隊伍", use_container_width=True):
-            if len(st.session_state.app_data["my_team"]) < 6:
-                # 加上 is_team 標籤，方便畫圖時發光
-                new_pkm["is_team"] = True
-                st.session_state.app_data["my_team"].append(new_pkm)
-                save_data(st.session_state.app_data)
-            else:
-                st.warning("隊伍已滿 6 隻！")
-    with col3_2:
-        if st.button("➕ 加入比較名單", use_container_width=True):
-            # 加上 is_team 標籤
-            new_pkm["is_team"] = False
-            st.session_state.app_data["compare_list"].append(new_pkm)
+st.write("")
+col_btn1, col_btn2, col_btn3 = st.columns([2, 2, 1])
+
+# 共同計算邏輯
+base_spe = pokedex[selected_pkm][5]
+neutral = int(base_spe + 52)
+final = int(neutral * 1.1) if "極速" in speed_config else neutral
+if "圍巾" in speed_config: final = int(final * 1.5)
+if "無速" in speed_config: final = int(base_spe + 20)
+if "空間" in speed_config: final = int((base_spe + 5) * 0.9)
+
+badge_color = "#e67e22" if "極速" in speed_config else "#3498db" if "準速" in speed_config else "#2ecc71" if "空間" in speed_config else "#9b59b6" if "圍巾" in speed_config else "#95a5a6"
+
+new_pkm = {
+    "name": selected_pkm, 
+    "config": speed_config.split(" ")[0], 
+    "speed": final, 
+    "color": badge_color, 
+    "stats": pokedex[selected_pkm]
+}
+
+with col_btn1:
+    if st.button("⭐ 加入我的隊伍"):
+        if len(st.session_state.app_data["my_team"]) < 6:
+            new_pkm["is_team"] = True
+            st.session_state.app_data["my_team"].append(new_pkm)
             save_data(st.session_state.app_data)
-
-with col4:
-    st.write("")
-    if st.button("🗑️ 清空全部"):
+            st.rerun()
+        else:
+            st.warning("隊伍已滿 6 隻！")
+with col_btn2:
+    if st.button("➕ 加入比較名單"):
+        new_pkm["is_team"] = False
+        st.session_state.app_data["compare_list"].append(new_pkm)
+        save_data(st.session_state.app_data)
+        st.rerun()
+with col_btn3:
+    if st.button("🗑️ 全清"):
         st.session_state.app_data = {"my_team": [], "compare_list": []}
         save_data(st.session_state.app_data)
         st.rerun()
 
 # ==========================================
-# 📋 側邊欄修改：長度調整與清單管理
+# 🛠️ 手機版優化：管理面板 (取代原本被隱藏的側邊欄)
 # ==========================================
-with st.sidebar:
-    line_width = st.slider("📏 調整速度線總長度", 1000, 8000, 2500, step=100)
+line_width = 2500  # 預設值
+with st.expander("🛠️ 管理隊伍與調整長度 (點擊展開)", expanded=False):
+    line_width = st.slider("📏 調整速度線總長度 (越長越不擠)", 1000, 8000, 2500, step=100)
     st.markdown("---")
     
-    # 渲染刪除清單的通用函數
     def render_list(list_key, title):
-        st.header(title)
+        st.write(f"**{title}**")
         new_list = []
         changed = False
         for i, item in enumerate(st.session_state.app_data[list_key]):
             c1, c2 = st.columns([4, 1])
-            c1.write(f"{item['name']} ({item['config']})")
+            c1.markdown(f"<div style='padding-top: 5px;'>{item['name']} ({item['config']}) - {item['speed']}</div>", unsafe_allow_html=True)
             if c2.button("❌", key=f"del_{list_key}_{i}"):
                 changed = True
                 continue
@@ -416,20 +418,21 @@ with st.sidebar:
     render_list("compare_list", "🔍 比較對象")
 
 # ==========================================
-# 📈 畫圖區塊 (全域暗黑融合 + 實體刻度尺)
+# 📈 畫圖區塊 (含 JS 點擊修復 + 暗黑電競風)
 # ==========================================
 st.markdown("---")
 
 html_content = f"""
 <style>
-    /* 1. 隱藏原本的黑框與陰影，改為透明，讓它與全域暗黑背景完美融合 */
     .timeline-container {{ position: relative; width: 100%; height: 550px; font-family: sans-serif; overflow-x: auto; overflow-y: hidden; background-color: transparent; }}
+    
+    /* 優化滾動條，讓手機滑起來更好看 */
+    .timeline-container::-webkit-scrollbar {{ height: 8px; }}
+    .timeline-container::-webkit-scrollbar-thumb {{ background: #555; border-radius: 4px; }}
     
     .scroll-area {{ width: {line_width}px; position: relative; height: 100%; padding: 0 50px; }}
     
     .timeline-track {{ position: absolute; top: 50%; left: 50px; right: 50px; height: 4px; background-color: #00d2ff; box-shadow: 0 0 10px #00d2ff; border-radius: 2px; }}
-    
-    /* 2. X軸右側的箭頭 (你要求的向量箭頭) */
     .timeline-track::after {{ 
         content: ''; position: absolute; right: -15px; top: -6px; 
         border-top: 8px solid transparent; border-bottom: 8px solid transparent; border-left: 15px solid #00d2ff; 
@@ -437,19 +440,29 @@ html_content = f"""
     }}
     
     .pkm-node {{ position: absolute; transform: translateX(-50%); outline: none; cursor: pointer; text-align: center; width: 100px; z-index: 10; }}
-    .pkm-img {{ width: 60px; height: auto; image-rendering: pixelated; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5)); }}
+    .pkm-img {{ width: 60px; height: auto; image-rendering: pixelated; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5)); transition: transform 0.2s; }}
     .pkm-label {{ background-color: rgba(44, 62, 80, 0.9); color: #ecf0f1; padding: 4px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-top: 5px; line-height: 1.4; border: 1px solid #34495e; }}
     
+    /* 懸浮提示卡片預設隱藏 */
     .tooltip-card {{
         visibility: hidden; width: 130px; background-color: rgba(20, 25, 30, 0.95); color: #ecf0f1; text-align: left;
         border-radius: 8px; padding: 10px; position: absolute; z-index: 1000;
         left: 50%; transform: translateX(-50%);
         opacity: 0; transition: opacity 0.2s, visibility 0.2s; box-shadow: 0px 5px 15px rgba(0,0,0,0.8); font-size: 13px; line-height: 1.5; pointer-events: none;
     }}
-    .pkm-node:hover .tooltip-card, .pkm-node:focus .tooltip-card {{ visibility: visible; opacity: 1; }}
+    
+    /* 電腦版：Hover 時顯示 */
+    @media (hover: hover) {{
+        .pkm-node:hover .tooltip-card {{ visibility: visible; opacity: 1; }}
+        .pkm-node:hover .pkm-img {{ transform: scale(1.1); }}
+    }}
+    
+    /* 手機版：點擊時加上 active 類別來顯示 */
+    .pkm-node.active .tooltip-card {{ visibility: visible; opacity: 1; }}
+    .pkm-node.active .pkm-img {{ transform: scale(1.1); }}
 </style>
 
-<div class="timeline-container">
+<div class="timeline-container" id="timeline">
     <div class="scroll-area">
 """
 
@@ -461,23 +474,20 @@ if plotted_data:
     max_s = max(plotted_data, key=lambda x: x["speed"])["speed"] + 20
     range_s = max_s - min_s if max_s != min_s else 100
 
-    # 📏 3. 動態計算並畫出 X 軸刻度 (每 10 點畫一格)
+    # 畫刻度
     ticks_html = ""
     tick_step = 10 
     start_tick = ((int(min_s) // tick_step) + 1) * tick_step
     
     for tick_val in range(start_tick, int(max_s), tick_step):
         left_percent = ((tick_val - min_s) / range_s) * 95 + 2
-        # 長刻度線與數字
         ticks_html += f"""
         <div style="position: absolute; left: {left_percent}%; top: -8px; width: 2px; height: 20px; background-color: rgba(0, 210, 255, 0.4);"></div>
         <div style="position: absolute; left: {left_percent}%; top: 15px; transform: translateX(-50%); color: rgba(0, 210, 255, 0.7); font-size: 12px; font-weight: bold;">{tick_val}</div>
         """
-
-    # 把刻度塞進軌道裡面
     html_content += f'<div class="timeline-track">{ticks_html}</div>'
 
-    # 4. 畫出寶可夢
+    # 畫寶可夢
     for i, p in enumerate(plotted_data):
         left_percent = ((p["speed"] - min_s) / range_s) * 95 + 2
         is_top = (i % 2 == 0)
@@ -491,7 +501,7 @@ if plotted_data:
         team_star = "⭐ " if p.get("is_team") else ""
         
         html_content += f"""
-        <div class="pkm-node" style="left: {left_percent}%; top: {node_top};" tabindex="0">
+        <div class="pkm-node" style="left: {left_percent}%; top: {node_top};">
             {'' if is_top else f'<div style="width: 14px; height: 14px; background-color: {p["color"]}; border: 2px solid white; border-radius: 50%; margin: 0 auto; {glow_effect}"></div><div style="width: 2px; background-color: #555; margin: 0 auto; height: 60px;"></div>'}
             
             <div style="position: relative;">
@@ -520,7 +530,28 @@ else:
     html_content += f'<div class="timeline-track"></div>'
     html_content += "<div style='position:absolute; top:45%; width:100%; text-align:center; color:#7f8c8d; font-size:18px;'>目前名單為空，請從上方選擇寶可夢加入！</div>"
 
-html_content += "</div></div>"
+# 🌟 新增：注入一段 JavaScript 來處理手機點擊收合的問題
+html_content += """
+    </div>
+</div>
+<script>
+    // 偵測點擊事件
+    document.addEventListener("click", function(event) {
+        let clickedNode = event.target.closest(".pkm-node");
+        
+        // 1. 先把所有已經點開的數據面板關掉 (移除 active)
+        document.querySelectorAll(".pkm-node").forEach(function(node) {
+            if (node !== clickedNode) {
+                node.classList.remove("active");
+            }
+        });
+        
+        // 2. 如果你剛好點在某一隻寶可夢上，就切換它的顯示狀態
+        if (clickedNode) {
+            clickedNode.classList.toggle("active");
+        }
+    });
+</script>
+"""
 
-# 在 Streamlit 中渲染 HTML (加入透明背景設定)
 st.components.v1.html(html_content, height=600)
