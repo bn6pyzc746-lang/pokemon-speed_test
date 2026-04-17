@@ -482,26 +482,35 @@ else:
     # ----------------------------------------------------
     else:
         html_content = f"""
-        <style>
-            /* 修正捲動卡頓：將 height 設為 auto，overflow 設為 visible */
+                <style>
             .v-wrap {{ width:100%; height:auto; overflow:visible; background:transparent; position:relative; }} 
             .v-container {{ position:relative; width:100%; height:{axis_length}px; padding:50px 0; }} 
             .v-track {{ position:absolute; top:40px; bottom:40px; left:50%; width:4px; transform:translateX(-50%); background:#00d2ff; box-shadow: 0 0 10px #00d2ff; }} 
-            .v-node {{ position:absolute; transform:translateY(-50%); width:50%; display:flex; align-items:center; cursor:pointer; }} 
-            .left-side {{ left:0; justify-content:flex-end; flex-direction:row-reverse; padding-right:calc(50% + 15px); }} 
-            .right-side {{ right:0; justify-content:flex-start; padding-left:calc(50% + 15px); }} 
-            .v-img {{ width:55px; filter:drop-shadow(0 0 5px #000); }} 
-            .v-label {{ background:rgba(30,40,50,0.95); color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; border:1px solid #444; text-align:center; }} 
-            .v-dot {{ position:absolute; width:14px; height:14px; border:2px solid #fff; border-radius:50%; left:50%; transform:translateX(-50%); z-index:3; box-shadow: 0 0 4px rgba(0,0,0,0.8); }} 
-            /* 補回連接線的 CSS */
-            .connector {{ position:absolute; height:2px; background-color:#555; width:30px; z-index:1; }}
-            .left-side .connector {{ right: calc(50% - 15px); }}
-            .right-side .connector {{ left: calc(50% - 15px); }}
-            /* 六圍卡片樣式 */
-            .v-tooltip {{ display:none; position:absolute; top:100%; width:130px; background:#14191e; border-radius:8px; padding:10px; z-index:100; font-size:12px; text-align:left; box-shadow: 0 5px 15px #000; }} 
-            .left-side .v-tooltip {{ right:0; }}
-            .right-side .v-tooltip {{ left:0; }}
+            
+            /* 節點佈局：嚴格切分左右兩半 */
+            .v-node {{ position:absolute; transform:translateY(-50%); width:50%; display:flex; align-items:center; cursor:pointer; outline:none; }} 
+            .left-side {{ left:0; justify-content:flex-end; padding-right: 35px; }} 
+            .right-side {{ left:50%; justify-content:flex-start; padding-left: 35px; }} 
+            
+            /* 連接線 (精準備位) */
+            .connector {{ position:absolute; height:2px; background-color:#ecf0f1; width:35px; z-index:1; opacity: 0.5; }}
+            .left-side .connector {{ right: 0; }}
+            .right-side .connector {{ left: 0; }}
+            
+            /* 中心圓點 (鎖死在中線上) */
+            .v-dot {{ position:absolute; width:14px; height:14px; border:2px solid #fff; border-radius:50%; z-index:3; box-shadow: 0 0 4px rgba(0,0,0,0.8); }} 
+            .left-side .v-dot {{ right: -7px; }}
+            .right-side .v-dot {{ left: -7px; }}
+            
+            .v-img {{ width:55px; filter:drop-shadow(0 0 5px #000); z-index:2; transition: transform 0.2s; }} 
+            .v-label {{ background:rgba(30,40,50,0.95); color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; border:1px solid #444; text-align:center; z-index:2; line-height:1.4; }} 
+            
+            /* 六圍卡片優化：強制置中、加入淺色字體 color:#ecf0f1 */
+            .v-tooltip {{ display:none; position:absolute; top:100%; left:50%; transform:translateX(-50%); width:130px; background:#14191e; border-radius:8px; padding:10px; z-index:100; font-size:12px; text-align:left; box-shadow: 0 5px 15px #000; color:#ecf0f1; margin-top:5px; }} 
             .v-node.active .v-tooltip {{ display:block; }}
+            .v-node.active .v-img {{ transform: scale(1.15); }}
+        </style>
+
         </style>
         <div class="v-wrap"><div class="v-container"><div class="v-track"></div>
         """
@@ -538,5 +547,7 @@ else:
             </div>"""
         html_content += f"{watermark_html}</div></div>"
 
-    # 渲染 (加入 scrolling=True，確保能滑動)
-    st.components.v1.html(html_content, height=850 if "手機版" in display_mode else 650, scrolling=True)
+        # 渲染：手機版將高度設為「總軸長 + 120px緩衝」，並關閉內部捲動，徹底解決雙重捲動卡頓！
+    final_height = axis_length + 120 if "手機版" in display_mode else 650
+    st.components.v1.html(html_content, height=final_height, scrolling=False)
+
