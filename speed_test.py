@@ -423,6 +423,9 @@ else:
     # 簽名檔浮水印 HTML
     watermark_html = f'<div style="position:fixed; bottom:15px; right:20px; color:rgba(236,240,241,0.25); font-size:12px; font-style:italic; z-index:9999; pointer-events:none; font-family:sans-serif; text-shadow: 0 0 5px rgba(0,210,255,0.4);">Designed by Ann_guitarist | 寶可夢冠軍 1.0.2</div>'
 
+    # ----------------------------------------------------
+    # 🖥️ 電腦版 (橫向 X 軸)
+    # ----------------------------------------------------
     if "電腦版" in display_mode:
         html_content = f"""
         <style>
@@ -435,7 +438,7 @@ else:
             .pkm-node {{ position: absolute; transform: translateX(-50%); text-align: center; width: 100px; z-index: 10; cursor: pointer; }}
             .pkm-img {{ width: 60px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }}
             .pkm-label {{ background: rgba(44, 62, 80, 0.95); color: #fff; padding: 4px; border-radius: 4px; font-size: 11px; margin-top: 5px; border: 1px solid #34495e; }}
-            .tooltip-card {{ display: none; width: 130px; background: #14191e; border-radius: 8px; padding: 10px; position: absolute; z-index: 1000; left: 50%; transform: translateX(-50%); box-shadow: 0 5px 15px #000; font-size: 12px; }}
+            .tooltip-card {{ display: none; width: 130px; background: #14191e; border-radius: 8px; padding: 10px; position: absolute; z-index: 1000; left: 50%; transform: translateX(-50%); box-shadow: 0 5px 15px #000; font-size: 12px; text-align: left; }}
             .pkm-node.active .tooltip-card, .pkm-node:hover .tooltip-card {{ display: block; }}
         </style>
         <div class="timeline-container"><div class="scroll-area"><div class="timeline-track">
@@ -444,16 +447,21 @@ else:
             pos = ((tick - min_s) / range_s) * 95 + 2
             html_content += f'<div style="position:absolute; left:{pos}%; top:-8px; width:2px; height:20px; background:rgba(0,210,255,0.4);"></div><div style="position:absolute; left:{pos}%; top:15px; transform:translateX(-50%); color:rgba(0,210,255,0.7); font-size:12px; font-weight:bold;">{tick}</div>'
         html_content += "</div>"
+        
         for i, p in enumerate(plotted_data):
             pos = ((p["speed"] - min_s) / range_s) * 95 + 2
             is_top = i % 2 == 0
             s = p["stats"]
             glow = "box-shadow: 0 0 12px 3px gold;" if p.get("is_team") else ""
+            team_star = "⭐ " if p.get("is_team") else ""
+            tooltip_bottom = "110%" if not is_top else "auto"
+            tooltip_top = "auto" if not is_top else "110%"
+            
             html_content += f"""
             <div class="pkm-node" style="left:{pos}%; top:{'calc(50% - 170px)' if is_top else '50%'};" onclick="this.classList.toggle('active')">
                 {'' if is_top else f'<div style="width:14px; height:14px; background:{p["color"]}; border:2px solid #fff; border-radius:50%; margin:0 auto; {glow}"></div><div style="width:2px; background:#555; margin:0 auto; height:60px;"></div>'}
                 <div style="position:relative;"><img class="pkm-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
-                <div class="pkm-label">{"⭐" if p.get("is_team") else ""}{p['name']}<br>{p['speed']}</div>
+                <div class="pkm-label">{team_star}{p['name']}<br>{p['speed']}</div>
                 <div class="tooltip-card" style="bottom: {tooltip_bottom}; top: {tooltip_top}; border: 2px solid {p['color']};">
                     <b style="color:{p['color']};">{team_star}{p['name']} ({p['config']})</b><br>
                     <hr style="margin: 4px 0; border-color: #444;">
@@ -464,35 +472,71 @@ else:
                     ✨ 特防: {s[4]}<br>
                     🏃 基礎速度: {s[5]}
                 </div>
-            </div>
+                </div>
                 {f'<div style="width:2px; background:#555; margin:0 auto; height:60px;"></div><div style="width:14px; height:14px; background:{p["color"]}; border:2px solid #fff; border-radius:50%; margin:0 auto; {glow}"></div>' if is_top else ''}
             </div>"""
         html_content += f"{watermark_html}</div></div>"
+
+    # ----------------------------------------------------
+    # 📱 手機版 (垂直 Y 軸)
+    # ----------------------------------------------------
     else:
-        # 垂直手機版 HTML 邏輯保持不變，但將容器改為透明
-        html_content = f"""<style>.v-wrap { width:100%; height:auto; overflow:visible; background:transparent; position:relative; }} .v-container {{ position:relative; width:100%; height:{axis_length}px; padding:50px 0; }} .v-track {{ position:absolute; top:40px; bottom:40px; left:50%; width:4px; transform:translateX(-50%); background:#00d2ff; box-shadow: 0 0 10px #00d2ff; }} .v-node {{ position:absolute; transform:translateY(-50%); width:50%; display:flex; align-items:center; cursor:pointer; }} .left-side {{ left:0; justify-content:flex-end; flex-direction:row-reverse; padding-right:calc(50% + 15px); }} .right-side {{ right:0; justify-content:flex-start; padding-left:calc(50% + 15px); }} .v-img {{ width:55px; filter:drop-shadow(0 0 5px #000); }} .v-label {{ background:rgba(30,40,50,0.95); color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; border:1px solid #444; text-align:center; }} .v-dot {{ position:absolute; width:14px; height:14px; border:2px solid #fff; border-radius:50%; left:50%; transform:translateX(-50%); z-index:3; }} .v-tooltip {{ display:none; position:absolute; top:100%; width:120px; background:#14191e; border-radius:8px; padding:8px; z-index:100; font-size:11px; }} .v-node.active .v-tooltip {{ display:block; }}</style><div class="v-wrap"><div class="v-container"><div class="v-track"></div>"""
+        html_content = f"""
+        <style>
+            /* 修正捲動卡頓：將 height 設為 auto，overflow 設為 visible */
+            .v-wrap {{ width:100%; height:auto; overflow:visible; background:transparent; position:relative; }} 
+            .v-container {{ position:relative; width:100%; height:{axis_length}px; padding:50px 0; }} 
+            .v-track {{ position:absolute; top:40px; bottom:40px; left:50%; width:4px; transform:translateX(-50%); background:#00d2ff; box-shadow: 0 0 10px #00d2ff; }} 
+            .v-node {{ position:absolute; transform:translateY(-50%); width:50%; display:flex; align-items:center; cursor:pointer; }} 
+            .left-side {{ left:0; justify-content:flex-end; flex-direction:row-reverse; padding-right:calc(50% + 15px); }} 
+            .right-side {{ right:0; justify-content:flex-start; padding-left:calc(50% + 15px); }} 
+            .v-img {{ width:55px; filter:drop-shadow(0 0 5px #000); }} 
+            .v-label {{ background:rgba(30,40,50,0.95); color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; border:1px solid #444; text-align:center; }} 
+            .v-dot {{ position:absolute; width:14px; height:14px; border:2px solid #fff; border-radius:50%; left:50%; transform:translateX(-50%); z-index:3; box-shadow: 0 0 4px rgba(0,0,0,0.8); }} 
+            /* 補回連接線的 CSS */
+            .connector {{ position:absolute; height:2px; background-color:#555; width:30px; z-index:1; }}
+            .left-side .connector {{ right: calc(50% - 15px); }}
+            .right-side .connector {{ left: calc(50% - 15px); }}
+            /* 六圍卡片樣式 */
+            .v-tooltip {{ display:none; position:absolute; top:100%; width:130px; background:#14191e; border-radius:8px; padding:10px; z-index:100; font-size:12px; text-align:left; box-shadow: 0 5px 15px #000; }} 
+            .left-side .v-tooltip {{ right:0; }}
+            .right-side .v-tooltip {{ left:0; }}
+            .v-node.active .v-tooltip {{ display:block; }}
+        </style>
+        <div class="v-wrap"><div class="v-container"><div class="v-track"></div>
+        """
         for tick in range(((int(min_s)//10)+1)*10, int(max_s), 10):
             top_p = ((max_s - tick) / range_s) * 90 + 5
             html_content += f'<div style="position:absolute; top:{top_p}%; left:50%; width:16px; height:2px; background:rgba(0,210,255,0.5); transform:translate(-50%,-50%);"></div><div style="position:absolute; top:{top_p}%; left:calc(50% + 15px); transform:translateY(-50%); color:rgba(0,210,255,0.7); font-size:11px; font-weight:bold;">{tick}</div>'
+        
         for i, p in enumerate(plotted_data):
             top_p = ((max_s - p["speed"]) / range_s) * 90 + 5
             side = "left-side" if i % 2 == 0 else "right-side"
             s = p["stats"]
             glow = "box-shadow: 0 0 12px 3px gold;" if p.get("is_team") else ""
-            html_content += f"""<div class="v-node {side}" style="top:{top_p}%" onclick="this.classList.toggle('active')">
-    <div class="v-dot" style="background:{p['color']}; {glow}"></div>
-    <div class="connector"></div> <div style="position:relative; display:flex; flex-direction:column; align-items:center;"><img class="v-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png"><div class="v-label" style="border-color:{p['color']}">{p['name']}<br>{p['speed']}</div><div class="v-tooltip" style="bottom: {tooltip_bottom}; top: {tooltip_top}; border: 2px solid {p['color']};">
-                    <b style="color:{p['color']};">{team_star}{p['name']} ({p['config']})</b><br>
-                    <hr style="margin: 4px 0; border-color: #444;">
-                    ❤️ 體力: {s[0]}<br>
-                    ⚔️ 攻擊: {s[1]}<br>
-                    🛡️ 防禦: {s[2]}<br>
-                    🔮 特攻: {s[3]}<br>
-                    ✨ 特防: {s[4]}<br>
-                    🏃 基礎速度: {s[5]}
+            team_star = "⭐ " if p.get("is_team") else ""
+            
+            html_content += f"""
+            <div class="v-node {side}" style="top:{top_p}%" onclick="this.classList.toggle('active')">
+                <div class="v-dot" style="background:{p['color']}; {glow}"></div>
+                <div class="connector"></div> 
+                
+                <div style="position:relative; display:flex; flex-direction:column; align-items:center;">
+                    <img class="v-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
+                    <div class="v-label" style="border-color:{p['color']}">{team_star}{p['name']}<br>{p['speed']}</div>
+                    <div class="v-tooltip" style="border: 2px solid {p['color']};">
+                        <b style="color:{p['color']};">{team_star}{p['name']} ({p['config']})</b><br>
+                        <hr style="margin: 4px 0; border-color: #444;">
+                        ❤️ 體力: {s[0]}<br>
+                        ⚔️ 攻擊: {s[1]}<br>
+                        🛡️ 防禦: {s[2]}<br>
+                        🔮 特攻: {s[3]}<br>
+                        ✨ 特防: {s[4]}<br>
+                        🏃 基礎速度: {s[5]}
+                    </div>
                 </div>
             </div>"""
         html_content += f"{watermark_html}</div></div>"
 
-    # 渲染
+    # 渲染 (加入 scrolling=True，確保能滑動)
     st.components.v1.html(html_content, height=850 if "手機版" in display_mode else 650, scrolling=True)
