@@ -385,7 +385,7 @@ if "圍巾" in speed_config: final = int(final * 1.5)
 if "無速" in speed_config: final = int(base_spe + 20)
 if "空間" in speed_config: final = int((base_spe + 5) * 0.9)
 
-badge_color = "#e67e22" if "極速" in speed_config else "#3498db" if "準速" in config else "#2ecc71" if "空間" in config else "#9b59b6" if "圍巾" in config else "#95a5a6"
+badge_color = "#e67e22" if "極速" in speed_config else "#3498db" if "準速" in speed_config else "#2ecc71" if "空間" in speed_config else "#9b59b6" if "圍巾" in speed_config else "#95a5a6"
 
 new_pkm = {"name": selected_pkm, "config": speed_config.split(" ")[0], "speed": final, "color": badge_color, "stats": pokedex[selected_pkm]}
 
