@@ -454,14 +454,23 @@ else:
                 {'' if is_top else f'<div style="width:14px; height:14px; background:{p["color"]}; border:2px solid #fff; border-radius:50%; margin:0 auto; {glow}"></div><div style="width:2px; background:#555; margin:0 auto; height:60px;"></div>'}
                 <div style="position:relative;"><img class="pkm-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
                 <div class="pkm-label">{"⭐" if p.get("is_team") else ""}{p['name']}<br>{p['speed']}</div>
-                <div class="tooltip-card" style="bottom:{'110%' if not is_top else 'auto'}; top:{'auto' if not is_top else '110%'}; border:2px solid {p['color']};">
-                ❤️ {s[0]} | ⚔️ {s[1]} | 🛡️ {s[2]}<br>🔮 {s[3]} | ✨ {s[4]} | 🏃 {s[5]}</div></div>
+                <div class="tooltip-card" style="bottom: {tooltip_bottom}; top: {tooltip_top}; border: 2px solid {p['color']};">
+                    <b style="color:{p['color']};">{team_star}{p['name']} ({p['config']})</b><br>
+                    <hr style="margin: 4px 0; border-color: #444;">
+                    ❤️ 體力: {s[0]}<br>
+                    ⚔️ 攻擊: {s[1]}<br>
+                    🛡️ 防禦: {s[2]}<br>
+                    🔮 特攻: {s[3]}<br>
+                    ✨ 特防: {s[4]}<br>
+                    🏃 基礎速度: {s[5]}
+                </div>
+            </div>
                 {f'<div style="width:2px; background:#555; margin:0 auto; height:60px;"></div><div style="width:14px; height:14px; background:{p["color"]}; border:2px solid #fff; border-radius:50%; margin:0 auto; {glow}"></div>' if is_top else ''}
             </div>"""
         html_content += f"{watermark_html}</div></div>"
     else:
         # 垂直手機版 HTML 邏輯保持不變，但將容器改為透明
-        html_content = f"""<style>.v-wrap {{ width:100%; height:100%; overflow-y:auto; background:transparent; position:relative; }} .v-container {{ position:relative; width:100%; height:{axis_length}px; padding:50px 0; }} .v-track {{ position:absolute; top:40px; bottom:40px; left:50%; width:4px; transform:translateX(-50%); background:#00d2ff; box-shadow: 0 0 10px #00d2ff; }} .v-node {{ position:absolute; transform:translateY(-50%); width:50%; display:flex; align-items:center; cursor:pointer; }} .left-side {{ left:0; justify-content:flex-end; flex-direction:row-reverse; padding-right:calc(50% + 15px); }} .right-side {{ right:0; justify-content:flex-start; padding-left:calc(50% + 15px); }} .v-img {{ width:55px; filter:drop-shadow(0 0 5px #000); }} .v-label {{ background:rgba(30,40,50,0.95); color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; border:1px solid #444; text-align:center; }} .v-dot {{ position:absolute; width:14px; height:14px; border:2px solid #fff; border-radius:50%; left:50%; transform:translateX(-50%); z-index:3; }} .v-tooltip {{ display:none; position:absolute; top:100%; width:120px; background:#14191e; border-radius:8px; padding:8px; z-index:100; font-size:11px; }} .v-node.active .v-tooltip {{ display:block; }}</style><div class="v-wrap"><div class="v-container"><div class="v-track"></div>"""
+        html_content = f"""<style>.v-wrap { width:100%; height:auto; overflow:visible; background:transparent; position:relative; }} .v-container {{ position:relative; width:100%; height:{axis_length}px; padding:50px 0; }} .v-track {{ position:absolute; top:40px; bottom:40px; left:50%; width:4px; transform:translateX(-50%); background:#00d2ff; box-shadow: 0 0 10px #00d2ff; }} .v-node {{ position:absolute; transform:translateY(-50%); width:50%; display:flex; align-items:center; cursor:pointer; }} .left-side {{ left:0; justify-content:flex-end; flex-direction:row-reverse; padding-right:calc(50% + 15px); }} .right-side {{ right:0; justify-content:flex-start; padding-left:calc(50% + 15px); }} .v-img {{ width:55px; filter:drop-shadow(0 0 5px #000); }} .v-label {{ background:rgba(30,40,50,0.95); color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; border:1px solid #444; text-align:center; }} .v-dot {{ position:absolute; width:14px; height:14px; border:2px solid #fff; border-radius:50%; left:50%; transform:translateX(-50%); z-index:3; }} .v-tooltip {{ display:none; position:absolute; top:100%; width:120px; background:#14191e; border-radius:8px; padding:8px; z-index:100; font-size:11px; }} .v-node.active .v-tooltip {{ display:block; }}</style><div class="v-wrap"><div class="v-container"><div class="v-track"></div>"""
         for tick in range(((int(min_s)//10)+1)*10, int(max_s), 10):
             top_p = ((max_s - tick) / range_s) * 90 + 5
             html_content += f'<div style="position:absolute; top:{top_p}%; left:50%; width:16px; height:2px; background:rgba(0,210,255,0.5); transform:translate(-50%,-50%);"></div><div style="position:absolute; top:{top_p}%; left:calc(50% + 15px); transform:translateY(-50%); color:rgba(0,210,255,0.7); font-size:11px; font-weight:bold;">{tick}</div>'
@@ -470,7 +479,19 @@ else:
             side = "left-side" if i % 2 == 0 else "right-side"
             s = p["stats"]
             glow = "box-shadow: 0 0 12px 3px gold;" if p.get("is_team") else ""
-            html_content += f"""<div class="v-node {side}" style="top:{top_p}%" onclick="this.classList.toggle('active')"><div class="v-dot" style="background:{p['color']}; {glow}"></div><div style="position:relative; display:flex; flex-direction:column; align-items:center;"><img class="v-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png"><div class="v-label" style="border-color:{p['color']}">{p['name']}<br>{p['speed']}</div><div class="v-tooltip" style="border:1px solid {p['color']}">❤️ {s[0]} | ⚔️ {s[1]} | 🛡️ {s[2]}<br>🔮 {s[3]} | ✨ {s[4]}</div></div></div>"""
+            html_content += f"""<div class="v-node {side}" style="top:{top_p}%" onclick="this.classList.toggle('active')">
+    <div class="v-dot" style="background:{p['color']}; {glow}"></div>
+    <div class="connector"></div> <div style="position:relative; display:flex; flex-direction:column; align-items:center;"><img class="v-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png"><div class="v-label" style="border-color:{p['color']}">{p['name']}<br>{p['speed']}</div><div class="v-tooltip" style="bottom: {tooltip_bottom}; top: {tooltip_top}; border: 2px solid {p['color']};">
+                    <b style="color:{p['color']};">{team_star}{p['name']} ({p['config']})</b><br>
+                    <hr style="margin: 4px 0; border-color: #444;">
+                    ❤️ 體力: {s[0]}<br>
+                    ⚔️ 攻擊: {s[1]}<br>
+                    🛡️ 防禦: {s[2]}<br>
+                    🔮 特攻: {s[3]}<br>
+                    ✨ 特防: {s[4]}<br>
+                    🏃 基礎速度: {s[5]}
+                </div>
+            </div>"""
         html_content += f"{watermark_html}</div></div>"
 
     # 渲染
