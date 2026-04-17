@@ -314,6 +314,7 @@ pokedex = {
     "超級甲賀忍蛙": [72, 125, 77, 133, 81, 142, "greninja-ash"],
 }
 
+
 # ==========================================
 # 💾 記憶功能邏輯
 # ==========================================
@@ -333,9 +334,12 @@ if "app_data" not in st.session_state:
     st.session_state.app_data = load_data()
 
 # ==========================================
-# 🎮 手機版優化：控制面板
+# 🎮 控制面板
 # ==========================================
-st.title("⚡ 寶可夢速度線 (手機垂直版)")
+st.title("⚡ 寶可夢速度線戰術板")
+
+# 🌟 新增：雙模式切換按鈕
+display_mode = st.radio("切換檢視模式：", ["🖥️ 電腦版 (橫向 X 軸)", "📱 手機版 (垂直 Y 軸)"], horizontal=True)
 
 col1, col2 = st.columns(2)
 with col1: selected_pkm = st.selectbox("🔍 選擇寶可夢：", list(pokedex.keys()))
@@ -376,11 +380,10 @@ with col_btn3:
         st.rerun()
 
 # ==========================================
-# 🛠️ 面板與長度調整 (改為調整高度)
+# 🛠️ 面板與長度調整 (共用參數)
 # ==========================================
-line_height = 1500  # 預設垂直高度
-with st.expander("🛠️ 管理隊伍與調整圖表高度", expanded=False):
-    line_height = st.slider("📏 調整速度線總高度 (越長越不擠)", 800, 5000, 1500, step=100)
+with st.expander("🛠️ 管理隊伍與調整圖表大小", expanded=False):
+    axis_length = st.slider("📏 調整速度線總長度/高度 (越長越不擠)", 800, 8000, 2000, step=100)
     st.markdown("---")
     
     def render_list(list_key, title):
@@ -404,126 +407,154 @@ with st.expander("🛠️ 管理隊伍與調整圖表高度", expanded=False):
     render_list("compare_list", "🔍 比較對象")
 
 # ==========================================
-# 📈 畫圖區塊 (全新 垂直 Y 軸設計)
+# 📈 畫圖區塊 (根據模式自動切換 HTML/CSS)
 # ==========================================
 st.markdown("---")
-
-html_content = f"""
-<style>
-    /* 外部容器：允許垂直滾動 */
-    .timeline-wrapper {{ width: 100%; height: 60vh; overflow-y: auto; overflow-x: hidden; background-color: #121212; border-radius: 12px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); position: relative; }}
-    
-    /* 內部高度由滑桿決定 */
-    .timeline-container {{ position: relative; width: 100%; height: {line_height}px; font-family: sans-serif; padding: 50px 0; }}
-    
-    /* 垂直軌道居中 */
-    .timeline-track {{ position: absolute; top: 40px; bottom: 40px; left: 50%; width: 4px; transform: translateX(-50%); background-color: #00d2ff; box-shadow: 0 0 10px #00d2ff; border-radius: 2px; }}
-    
-    /* 頂部箭頭 (最快) */
-    .timeline-track::before {{ content: ''; position: absolute; top: -15px; left: -6px; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 15px solid #00d2ff; filter: drop-shadow(0 -2px 5px #00d2ff); }}
-    
-    /* 節點共同樣式 */
-    .pkm-node {{ position: absolute; transform: translateY(-50%); display: flex; align-items: center; width: 50%; z-index: 10; cursor: pointer; outline: none; }}
-    
-    /* 奇數放左邊，偶數放右邊 */
-    .pkm-node.left-side {{ left: 0; justify-content: flex-end; flex-direction: row-reverse; padding-right: calc(50% + 15px); }}
-    .pkm-node.right-side {{ right: 0; justify-content: flex-start; flex-direction: row; padding-left: calc(50% + 15px); }}
-    
-    .pkm-img {{ width: 55px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5)); transition: transform 0.2s; z-index: 2; }}
-    
-    .label-box {{ background-color: rgba(30, 40, 50, 0.95); color: #ecf0f1; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; line-height: 1.4; border: 1px solid #34495e; text-align: center; position: relative; z-index: 2; }}
-    
-    /* 連接線與小圓點 */
-    .connector {{ position: absolute; height: 2px; background-color: #555; width: 30px; z-index: 1; }}
-    .left-side .connector {{ right: calc(50% - 15px); }}
-    .right-side .connector {{ left: calc(50% - 15px); }}
-    
-    .dot {{ position: absolute; width: 14px; height: 14px; border: 2px solid white; border-radius: 50%; left: 50%; transform: translateX(-50%); z-index: 3; box-shadow: 0 0 4px rgba(0,0,0,0.8); }}
-
-    /* 彈出卡片優化 (點擊顯示在下方) */
-    .tooltip-card {{ display: none; position: absolute; top: 100%; margin-top: 5px; width: 130px; background-color: rgba(20, 25, 30, 0.98); border-radius: 8px; padding: 10px; box-shadow: 0px 5px 15px rgba(0,0,0,0.9); font-size: 12px; text-align: left; z-index: 100; }}
-    .left-side .tooltip-card {{ right: 0; }}
-    .right-side .tooltip-card {{ left: 0; }}
-    
-    /* Active 狀態才顯示 */
-    .pkm-node.active .tooltip-card {{ display: block; }}
-    .pkm-node.active .pkm-img {{ transform: scale(1.15); }}
-</style>
-
-<div class="timeline-wrapper" id="scroll-wrapper">
-    <div class="timeline-container">
-        <div class="timeline-track"></div>
-"""
-
 plotted_data = st.session_state.app_data["my_team"] + st.session_state.app_data["compare_list"]
 
-if plotted_data:
-    # 按照速度排序 (由小到大，畫圖時反過來)
+if not plotted_data:
+    st.markdown("<div style='text-align:center; color:#7f8c8d; font-size:16px; padding: 50px;'>目前名單為空，請從上方加入寶可夢！</div>", unsafe_allow_html=True)
+else:
     plotted_data = sorted(plotted_data, key=lambda x: x["speed"])
     min_s = min(plotted_data, key=lambda x: x["speed"])["speed"] - 10
     max_s = max(plotted_data, key=lambda x: x["speed"])["speed"] + 20
     range_s = max_s - min_s if max_s != min_s else 100
 
-    # 畫出 Y 軸垂直刻度
-    ticks_html = ""
-    start_tick = ((int(min_s) // 10) + 1) * 10
-    for tick_val in range(start_tick, int(max_s), 10):
-        # 速度越快，位置越上面 (top 越小)
-        top_percent = ((max_s - tick_val) / range_s) * 90 + 5
-        ticks_html += f"""
-        <div style="position: absolute; top: {top_percent}%; left: 50%; width: 16px; height: 2px; background-color: rgba(0, 210, 255, 0.5); transform: translate(-50%, -50%);"></div>
-        <div style="position: absolute; top: {top_percent}%; left: calc(50% + 15px); transform: translateY(-50%); color: rgba(0, 210, 255, 0.7); font-size: 11px; font-weight: bold;">{tick_val}</div>
-        """
-    html_content += ticks_html
+    html_content = ""
 
-    # 畫寶可夢 (左右交錯)
-    for i, p in enumerate(plotted_data):
-        top_percent = ((max_s - p["speed"]) / range_s) * 90 + 5
-        side_class = "left-side" if i % 2 == 0 else "right-side"
-        s = p["stats"]
-        
-        glow = f"box-shadow: 0 0 12px 3px gold; border-color: gold;" if p.get("is_team") else ""
-        star = "⭐ " if p.get("is_team") else ""
-        
+    # ----------------------------------------------------
+    # 🖥️ 模式 A：電腦版 (橫向 X 軸)
+    # ----------------------------------------------------
+    if "電腦版" in display_mode:
         html_content += f"""
-        <div class="pkm-node {side_class}" style="top: {top_percent}%;">
-            <div class="dot" style="background-color: {p['color']}; {glow}"></div>
-            <div class="connector"></div>
+        <style>
+            .timeline-container {{ position: relative; width: 100%; height: 550px; font-family: sans-serif; overflow-x: auto; overflow-y: hidden; background-color: transparent; }}
+            .timeline-container::-webkit-scrollbar {{ height: 8px; }}
+            .timeline-container::-webkit-scrollbar-thumb {{ background: #555; border-radius: 4px; }}
+            .scroll-area {{ width: {axis_length}px; position: relative; height: 100%; padding: 0 50px; }}
+            .timeline-track {{ position: absolute; top: 50%; left: 50px; right: 50px; height: 4px; background-color: #00d2ff; box-shadow: 0 0 10px #00d2ff; border-radius: 2px; }}
+            .timeline-track::after {{ content: ''; position: absolute; right: -15px; top: -6px; border-top: 8px solid transparent; border-bottom: 8px solid transparent; border-left: 15px solid #00d2ff; filter: drop-shadow(2px 0 5px #00d2ff); }}
+            .pkm-node {{ position: absolute; transform: translateX(-50%); outline: none; cursor: pointer; text-align: center; width: 100px; z-index: 10; }}
+            .pkm-img {{ width: 60px; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5)); transition: transform 0.2s; }}
+            .pkm-label {{ background-color: rgba(44, 62, 80, 0.9); color: #ecf0f1; padding: 4px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-top: 5px; line-height: 1.4; border: 1px solid #34495e; }}
+            .tooltip-card {{ display: none; width: 130px; background-color: rgba(20, 25, 30, 0.98); color: #ecf0f1; text-align: left; border-radius: 8px; padding: 10px; position: absolute; z-index: 1000; left: 50%; transform: translateX(-50%); box-shadow: 0px 5px 15px rgba(0,0,0,0.9); font-size: 13px; line-height: 1.5; }}
+            @media (hover: hover) {{ .pkm-node:hover .tooltip-card {{ display: block; }} .pkm-node:hover .pkm-img {{ transform: scale(1.1); }} }}
+            .pkm-node.active .tooltip-card {{ display: block; }}
+            .pkm-node.active .pkm-img {{ transform: scale(1.1); }}
+        </style>
+        <div class="timeline-container"><div class="scroll-area">
+        """
+        
+        # 畫 X 軸刻度
+        ticks_html = ""
+        start_tick = ((int(min_s) // 10) + 1) * 10
+        for tick_val in range(start_tick, int(max_s), 10):
+            left_percent = ((tick_val - min_s) / range_s) * 95 + 2
+            ticks_html += f'<div style="position: absolute; left: {left_percent}%; top: -8px; width: 2px; height: 20px; background-color: rgba(0, 210, 255, 0.4);"></div><div style="position: absolute; left: {left_percent}%; top: 15px; transform: translateX(-50%); color: rgba(0, 210, 255, 0.7); font-size: 12px; font-weight: bold;">{tick_val}</div>'
+        html_content += f'<div class="timeline-track">{ticks_html}</div>'
+
+        # 畫寶可夢
+        for i, p in enumerate(plotted_data):
+            left_percent = ((p["speed"] - min_s) / range_s) * 95 + 2
+            is_top = (i % 2 == 0)
+            node_top = "calc(50% - 170px)" if is_top else "50%"
+            tooltip_bottom = "110%" if not is_top else "auto"
+            tooltip_top = "auto" if not is_top else "110%"
+            s = p["stats"]
+            glow = f"box-shadow: 0 0 12px 3px gold; border-color: gold;" if p.get("is_team") else f"box-shadow: 0 0 6px rgba(0,0,0,0.8);"
+            star = "⭐ " if p.get("is_team") else ""
             
-            <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
-                <img class="pkm-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
-                <div class="label-box" style="border-color: {p['color']};">
-                    {star}{p['name']}<br><span style="color:{p['color']};">{p['config']}</span>: {p['speed']}
+            html_content += f"""
+            <div class="pkm-node" style="left: {left_percent}%; top: {node_top};">
+                {'' if is_top else f'<div style="width: 14px; height: 14px; background-color: {p["color"]}; border: 2px solid white; border-radius: 50%; margin: 0 auto; {glow}"></div><div style="width: 2px; background-color: #555; margin: 0 auto; height: 60px;"></div>'}
+                <div style="position: relative;">
+                    <img class="pkm-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
+                    <div class="pkm-label">{star}{p['name']}<br><span style="color:{p['color']};">{p['config']}</span>: {p['speed']}</div>
+                    <div class="tooltip-card" style="bottom: {tooltip_bottom}; top: {tooltip_top}; border: 2px solid {p['color']};">
+                        <b style="color:{p['color']};">{star}{p['name']}</b><br><hr style="margin: 4px 0; border-color: #444;">
+                        ❤️ {s[0]} | ⚔️ {s[1]} | 🛡️ {s[2]}<br>🔮 {s[3]} | ✨ {s[4]} | 🏃 {s[5]}
+                    </div>
                 </div>
-                
-                <div class="tooltip-card" style="border: 2px solid {p['color']};">
-                    <b style="color:{p['color']};">{star}{p['name']}</b><br>
-                    <hr style="margin: 4px 0; border-color: #555;">
-                    ❤️ 體力: {s[0]}<br>⚔️ 攻擊: {s[1]}<br>🛡️ 防禦: {s[2]}<br>
-                    🔮 特攻: {s[3]}<br>✨ 特防: {s[4]}<br>🏃 基礎: {s[5]}
+                {f'<div style="width: 2px; background-color: #555; margin: 0 auto; height: 60px;"></div><div style="width: 14px; height: 14px; background-color: {p["color"]}; border: 2px solid white; border-radius: 50%; margin: 0 auto; {glow}"></div>' if is_top else ''}
+            </div>
+            """
+        html_content += "</div></div>"
+
+    # ----------------------------------------------------
+    # 📱 模式 B：手機版 (垂直 Y 軸)
+    # ----------------------------------------------------
+    else:
+        html_content += f"""
+        <style>
+            .timeline-wrapper {{ width: 100%; height: 60vh; overflow-y: auto; overflow-x: hidden; background-color: #121212; border-radius: 12px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); position: relative; }}
+            .timeline-wrapper::-webkit-scrollbar {{ width: 8px; }}
+            .timeline-wrapper::-webkit-scrollbar-thumb {{ background: #555; border-radius: 4px; }}
+            .timeline-container-v {{ position: relative; width: 100%; height: {axis_length}px; font-family: sans-serif; padding: 50px 0; }}
+            .timeline-track-v {{ position: absolute; top: 40px; bottom: 40px; left: 50%; width: 4px; transform: translateX(-50%); background-color: #00d2ff; box-shadow: 0 0 10px #00d2ff; border-radius: 2px; }}
+            .timeline-track-v::before {{ content: ''; position: absolute; top: -15px; left: -6px; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 15px solid #00d2ff; filter: drop-shadow(0 -2px 5px #00d2ff); }}
+            .pkm-node {{ position: absolute; transform: translateY(-50%); display: flex; align-items: center; width: 50%; z-index: 10; cursor: pointer; outline: none; }}
+            .left-side {{ left: 0; justify-content: flex-end; flex-direction: row-reverse; padding-right: calc(50% + 15px); }}
+            .right-side {{ right: 0; justify-content: flex-start; flex-direction: row; padding-left: calc(50% + 15px); }}
+            .pkm-img {{ width: 55px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5)); transition: transform 0.2s; z-index: 2; }}
+            .label-box {{ background-color: rgba(30, 40, 50, 0.95); color: #ecf0f1; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; line-height: 1.4; border: 1px solid #34495e; text-align: center; position: relative; z-index: 2; }}
+            .connector {{ position: absolute; height: 2px; background-color: #555; width: 30px; z-index: 1; }}
+            .left-side .connector {{ right: calc(50% - 15px); }}
+            .right-side .connector {{ left: calc(50% - 15px); }}
+            .dot {{ position: absolute; width: 14px; height: 14px; border: 2px solid white; border-radius: 50%; left: 50%; transform: translateX(-50%); z-index: 3; box-shadow: 0 0 4px rgba(0,0,0,0.8); }}
+            .tooltip-card {{ display: none; position: absolute; top: 100%; margin-top: 5px; width: 130px; background-color: rgba(20, 25, 30, 0.98); border-radius: 8px; padding: 10px; box-shadow: 0px 5px 15px rgba(0,0,0,0.9); font-size: 12px; text-align: left; z-index: 100; }}
+            .left-side .tooltip-card {{ right: 0; }}
+            .right-side .tooltip-card {{ left: 0; }}
+            .pkm-node.active .tooltip-card {{ display: block; }}
+            .pkm-node.active .pkm-img {{ transform: scale(1.15); }}
+        </style>
+        <div class="timeline-wrapper"><div class="timeline-container-v"><div class="timeline-track-v"></div>
+        """
+
+        # 畫 Y 軸刻度
+        ticks_html = ""
+        start_tick = ((int(min_s) // 10) + 1) * 10
+        for tick_val in range(start_tick, int(max_s), 10):
+            top_percent = ((max_s - tick_val) / range_s) * 90 + 5
+            ticks_html += f'<div style="position: absolute; top: {top_percent}%; left: 50%; width: 16px; height: 2px; background-color: rgba(0, 210, 255, 0.5); transform: translate(-50%, -50%);"></div><div style="position: absolute; top: {top_percent}%; left: calc(50% + 15px); transform: translateY(-50%); color: rgba(0, 210, 255, 0.7); font-size: 11px; font-weight: bold;">{tick_val}</div>'
+        html_content += ticks_html
+
+        # 畫寶可夢
+        for i, p in enumerate(plotted_data):
+            top_percent = ((max_s - p["speed"]) / range_s) * 90 + 5
+            side_class = "left-side" if i % 2 == 0 else "right-side"
+            s = p["stats"]
+            glow = f"box-shadow: 0 0 12px 3px gold; border-color: gold;" if p.get("is_team") else ""
+            star = "⭐ " if p.get("is_team") else ""
+            
+            html_content += f"""
+            <div class="pkm-node {side_class}" style="top: {top_percent}%;">
+                <div class="dot" style="background-color: {p['color']}; {glow}"></div>
+                <div class="connector"></div>
+                <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
+                    <img class="pkm-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
+                    <div class="label-box" style="border-color: {p['color']};">{star}{p['name']}<br><span style="color:{p['color']};">{p['config']}</span>: {p['speed']}</div>
+                    <div class="tooltip-card" style="border: 2px solid {p['color']};">
+                        <b style="color:{p['color']};">{star}{p['name']}</b><br><hr style="margin: 4px 0; border-color: #555;">
+                        ❤️ {s[0]} | ⚔️ {s[1]} | 🛡️ {s[2]}<br>🔮 {s[3]} | ✨ {s[4]} | 🏃 {s[5]}
+                    </div>
                 </div>
             </div>
-        </div>
-        """
-else:
-    html_content += "<div style='position:absolute; top:45%; width:100%; text-align:center; color:#7f8c8d; font-size:16px;'>目前名單為空，請從上方加入寶可夢！</div>"
+            """
+        html_content += "</div></div>"
 
-html_content += """
-    </div>
-</div>
-
-<script>
-    // 手機版完美的點擊收合邏輯
-    document.addEventListener("click", function(event) {
-        let clickedNode = event.target.closest(".pkm-node");
-        
-        document.querySelectorAll(".pkm-node").forEach(function(node) {
-            if (node !== clickedNode) { node.classList.remove("active"); }
+    # ----------------------------------------------------
+    # 🧠 共用：手機點擊收合腳本
+    # ----------------------------------------------------
+    html_content += """
+    <script>
+        document.addEventListener("click", function(event) {
+            let clickedNode = event.target.closest(".pkm-node");
+            document.querySelectorAll(".pkm-node").forEach(function(node) {
+                if (node !== clickedNode) { node.classList.remove("active"); }
+            });
+            if (clickedNode) { clickedNode.classList.toggle("active"); }
         });
-        
-        if (clickedNode) { clickedNode.classList.toggle("active"); }
-    });
-</script>
-"""
-
-st.components.v1.html(html_content, height=500)
+    </script>
+    """
+    
+    st.components.v1.html(html_content, height=600)
