@@ -477,77 +477,106 @@ else:
             </div>"""
         html_content += f"{watermark_html}</div></div>"
 
-    # ----------------------------------------------------
-    # 📱 手機版 (垂直 Y 軸)
+   # ----------------------------------------------------
+    # 📱 手機版 (垂直 Y 軸 - 全新左側對齊防撞版)
     # ----------------------------------------------------
     else:
+        # 1. 解決同速重疊問題 (計算偏移量)
+        speed_counts = {}
+        for p in plotted_data:
+            s = p["speed"]
+            p["tie_offset"] = speed_counts.get(s, 0)
+            speed_counts[s] = speed_counts.get(s, 0) + 1
+
         html_content = f"""
-                <style>
-            .v-wrap {{ width:100%; height:auto; overflow:visible; background:transparent; position:relative; }} 
+        <style>
+            /* 修正捲動卡頓：將內部捲動徹底關閉，讓畫布撐開 */
+            .v-wrap {{ width:100%; height:100%; background:transparent; position:relative; }} 
             .v-container {{ position:relative; width:100%; height:{axis_length}px; padding:50px 0; }} 
-            .v-track {{ position:absolute; top:40px; bottom:40px; left:50%; width:4px; transform:translateX(-50%); background:#00d2ff; box-shadow: 0 0 10px #00d2ff; }} 
             
-            /* 節點佈局：嚴格切分左右兩半 */
-            .v-node {{ position:absolute; transform:translateY(-50%); width:50%; display:flex; align-items:center; cursor:pointer; outline:none; }} 
-            .left-side {{ left:0; justify-content:flex-end; padding-right: 35px; }} 
-            .right-side {{ left:50%; justify-content:flex-start; padding-left: 35px; }} 
+            /* 軌道移到左側 40px */
+            .v-track {{ position:absolute; top:40px; bottom:40px; left:40px; width:4px; background:#00d2ff; box-shadow: 0 0 10px #00d2ff; }} 
+            /* 獨立的向量箭頭 (絕對不會被切掉) */
+            .v-arrow {{ position:absolute; top:25px; left:35px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:15px solid #00d2ff; filter: drop-shadow(0 -2px 5px #00d2ff); z-index:5; }}
             
-            /* 連接線 (精準備位) */
-            .connector {{ position:absolute; height:2px; background-color:#ecf0f1; width:35px; z-index:1; opacity: 0.5; }}
-            .left-side .connector {{ right: 0; }}
-            .right-side .connector {{ left: 0; }}
+            /* 節點統一固定在軌道上 */
+            .v-node {{ position:absolute; left:40px; transform:translateY(-50%); display:flex; align-items:center; cursor:pointer; outline:none; }} 
+            .v-dot {{ position:absolute; left:-5px; width:14px; height:14px; border:2px solid #fff; border-radius:50%; z-index:3; box-shadow: 0 0 4px rgba(0,0,0,0.8); }} 
+            .connector {{ position:absolute; left:2px; height:2px; background-color:#ecf0f1; opacity:0.6; z-index:1; }}
             
-            /* 中心圓點 (鎖死在中線上) */
-            .v-dot {{ position:absolute; width:14px; height:14px; border:2px solid #fff; border-radius:50%; z-index:3; box-shadow: 0 0 4px rgba(0,0,0,0.8); }} 
-            .left-side .v-dot {{ right: -7px; }}
-            .right-side .v-dot {{ left: -7px; }}
+            /* 內容區塊 (動態往右推) */
+            .v-content {{ position:relative; display:flex; flex-direction:column; align-items:center; z-index:2; }}
+            .v-img {{ width:55px; filter:drop-shadow(0 0 5px #000); transition: transform 0.2s; }} 
+            .v-label {{ background:rgba(30,40,50,0.95); color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; border:1px solid #444; text-align:center; line-height:1.4; margin-top:2px; white-space:nowrap; }} 
             
-            .v-img {{ width:55px; filter:drop-shadow(0 0 5px #000); z-index:2; transition: transform 0.2s; }} 
-            .v-label {{ background:rgba(30,40,50,0.95); color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; border:1px solid #444; text-align:center; z-index:2; line-height:1.4; }} 
-            
-            /* 六圍卡片優化：強制置中、加入淺色字體 color:#ecf0f1 */
-            .v-tooltip {{ display:none; position:absolute; top:100%; left:50%; transform:translateX(-50%); width:130px; background:#14191e; border-radius:8px; padding:10px; z-index:100; font-size:12px; text-align:left; box-shadow: 0 5px 15px #000; color:#ecf0f1; margin-top:5px; }} 
+            /* 六圍卡片：強制白字 #ffffff、靠左對齊，保證不切邊 */
+            .v-tooltip {{ display:none; position:absolute; top:100%; left:50%; transform:translateX(-50%); width:135px; background:#14191e; border-radius:8px; padding:10px; z-index:100; font-size:12px; text-align:left; box-shadow: 0 5px 15px #000; color:#ffffff; margin-top:5px; }} 
             .v-node.active .v-tooltip {{ display:block; }}
             .v-node.active .v-img {{ transform: scale(1.15); }}
         </style>
-
-        </style>
-        <div class="v-wrap"><div class="v-container"><div class="v-track"></div>
+        <div class="v-wrap"><div class="v-container">
+            <div class="v-arrow"></div>
+            <div class="v-track"></div>
         """
+        
+        # 畫 Y 軸刻度 (刻度線跟數字也跟著移到左邊)
         for tick in range(((int(min_s)//10)+1)*10, int(max_s), 10):
             top_p = ((max_s - tick) / range_s) * 90 + 5
-            html_content += f'<div style="position:absolute; top:{top_p}%; left:50%; width:16px; height:2px; background:rgba(0,210,255,0.5); transform:translate(-50%,-50%);"></div><div style="position:absolute; top:{top_p}%; left:calc(50% + 15px); transform:translateY(-50%); color:rgba(0,210,255,0.7); font-size:11px; font-weight:bold;">{tick}</div>'
+            html_content += f'<div style="position:absolute; top:{top_p}%; left:32px; width:16px; height:2px; background:rgba(0,210,255,0.5); transform:translateY(-50%);"></div><div style="position:absolute; top:{top_p}%; left:55px; transform:translateY(-50%); color:rgba(0,210,255,0.7); font-size:11px; font-weight:bold;">{tick}</div>'
         
-        for i, p in enumerate(plotted_data):
+        # 畫寶可夢
+        for p in plotted_data:
             top_p = ((max_s - p["speed"]) / range_s) * 90 + 5
-            side = "left-side" if i % 2 == 0 else "right-side"
+            
+            # ✨ 同速防撞魔法：如果有人速度一樣，就往右多推 75px
+            offset_idx = p["tie_offset"]
+            margin_l = 25 + (offset_idx * 75) 
+            
             s = p["stats"]
             glow = "box-shadow: 0 0 12px 3px gold;" if p.get("is_team") else ""
             team_star = "⭐ " if p.get("is_team") else ""
             
             html_content += f"""
-            <div class="v-node {side}" style="top:{top_p}%" onclick="this.classList.toggle('active')">
+            <div class="v-node" style="top:{top_p}%" onclick="this.classList.toggle('active')">
                 <div class="v-dot" style="background:{p['color']}; {glow}"></div>
-                <div class="connector"></div> 
+                <div class="connector" style="width:{margin_l}px;"></div> 
                 
-                <div style="position:relative; display:flex; flex-direction:column; align-items:center;">
+                <div class="v-content" style="margin-left:{margin_l}px;">
                     <img class="v-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
                     <div class="v-label" style="border-color:{p['color']}">{team_star}{p['name']}<br>{p['speed']}</div>
                     <div class="v-tooltip" style="border: 2px solid {p['color']};">
                         <b style="color:{p['color']};">{team_star}{p['name']} ({p['config']})</b><br>
-                        <hr style="margin: 4px 0; border-color: #444;">
+                        <hr style="margin: 4px 0; border-color: #555;">
                         ❤️ 體力: {s[0]}<br>
                         ⚔️ 攻擊: {s[1]}<br>
                         🛡️ 防禦: {s[2]}<br>
                         🔮 特攻: {s[3]}<br>
                         ✨ 特防: {s[4]}<br>
-                        🏃 基礎速度: {s[5]}
+                        🏃 基礎: {s[5]}
                     </div>
                 </div>
             </div>"""
         html_content += f"{watermark_html}</div></div>"
 
-        # 渲染：手機版將高度設為「總軸長 + 120px緩衝」，並關閉內部捲動，徹底解決雙重捲動卡頓！
-    final_height = axis_length + 120 if "手機版" in display_mode else 650
-    st.components.v1.html(html_content, height=final_height, scrolling=False)
+    # ----------------------------------------------------
+    # 🧠 渲染與解決雙重捲動
+    # ----------------------------------------------------
+    html_content += """
+    <script>
+        document.addEventListener("click", function(event) {
+            let clickedNode = event.target.closest(".pkm-node") || event.target.closest(".v-node");
+            document.querySelectorAll(".pkm-node, .v-node").forEach(function(node) {
+                if (node !== clickedNode) { node.classList.remove("active"); }
+            });
+            if (clickedNode) { clickedNode.classList.toggle("active"); }
+        });
+    </script>
+    """
+    
+    # ✨ 終極魔法：手機版將 scrolling 設為 False，並讓 iframe 高度完全等於軸長
+    # 這樣內部就不會產生捲動軸，完全依靠你手機瀏覽器本身的滑動，徹底解決卡頓！
+    if "手機版" in display_mode:
+        st.components.v1.html(html_content, height=axis_length + 100, scrolling=False)
+    else:
+        st.components.v1.html(html_content, height=650, scrolling=True)
 
