@@ -1,6 +1,4 @@
 import streamlit as st
-import json
-import os
 
 # ==========================================
 # 🌟 全螢幕寬版與全域暗黑模式
@@ -316,15 +314,55 @@ pokedex = {
 }
 
 # ==========================================
-# 💾 記憶功能邏輯 (✨ 拔除共用 JSON，改為個人瀏覽器獨立暫存)
+# 💾 記憶功能邏輯 (✨ 終極進化：URL 網址參數記憶法)
 # ==========================================
-# 只要沒有這個變數，就幫使用者建立一個全新的乾淨清單
+def encode_data(data):
+    """將目前的隊伍壓縮成一串字串，存入網址"""
+    items = []
+    for p in data.get("my_team", []): items.append(f"{p['name']}|{p['config']}|1")
+    for p in data.get("compare_list", []): items.append(f"{p['name']}|{p['config']}|0")
+    return "~".join(items)
+
+def decode_data(raw_str):
+    """從網址讀取字串，還原成寶可夢隊伍資料"""
+    app_data = {"my_team": [], "compare_list": []}
+    if not raw_str: return app_data
+    
+    for item in raw_str.split("~"):
+        parts = item.split("|")
+        if len(parts) == 3:
+            name, config, is_team_str = parts[0], parts[1], parts[2]
+            if name in pokedex:
+                base_spe = pokedex[name][5]
+                neutral = int(base_spe + 52)
+                final = int(neutral * 1.1) if "極速" in config else neutral
+                if "圍巾" in config: final = int(final * 1.5)
+                if "無速" in config: final = int(base_spe + 20)
+                if "空間" in config: final = int((base_spe + 5) * 0.9)
+                
+                badge_color = "#e67e22" if "極速" in config else "#3498db" if "準速" in config else "#2ecc71" if "空間" in config else "#9b59b6" if "圍巾" in config else "#95a5a6"
+                p_dict = {"name": name, "config": config, "speed": final, "color": badge_color, "stats": pokedex[name], "is_team": (is_team_str == "1")}
+                
+                if is_team_str == "1": app_data["my_team"].append(p_dict)
+                else: app_data["compare_list"].append(p_dict)
+    return app_data
+
+# 初始化：一打開網頁，先看網址有沒有紀錄，有就讀取，沒有就給空清單
 if "app_data" not in st.session_state:
-    st.session_state.app_data = {"my_team": [], "compare_list": []}
+    if "team" in st.query_params:
+        st.session_state.app_data = decode_data(st.query_params["team"])
+    else:
+        st.session_state.app_data = {"my_team": [], "compare_list": []}
 
 def save_data(data):
-    # 只更新當前使用者的網頁暫存，不再寫入伺服器檔案！
+    """更新畫面，並即時修改網址列"""
     st.session_state.app_data = data
+    encoded_str = encode_data(data)
+    if encoded_str:
+        st.query_params["team"] = encoded_str
+    else:
+        if "team" in st.query_params:
+            del st.query_params["team"]
 
 # ==========================================
 # 🎮 控制面板
@@ -347,7 +385,7 @@ if "圍巾" in speed_config: final = int(final * 1.5)
 if "無速" in speed_config: final = int(base_spe + 20)
 if "空間" in speed_config: final = int((base_spe + 5) * 0.9)
 
-badge_color = "#e67e22" if "極速" in speed_config else "#3498db" if "準速" in speed_config else "#2ecc71" if "空間" in speed_config else "#9b59b6" if "圍巾" in speed_config else "#95a5a6"
+badge_color = "#e67e22" if "極速" in speed_config else "#3498db" if "準速" in config else "#2ecc71" if "空間" in config else "#9b59b6" if "圍巾" in config else "#95a5a6"
 
 new_pkm = {"name": selected_pkm, "config": speed_config.split(" ")[0], "speed": final, "color": badge_color, "stats": pokedex[selected_pkm]}
 
@@ -386,7 +424,7 @@ with st.expander("🛠️ 管理名單與調整圖表比例", expanded=False):
     render_list("compare_list", "🔍 比較對象")
 
 # ==========================================
-# 📈 繪圖核心邏輯
+# 📈 繪圖核心邏輯 (保留上一版完美的視覺設計)
 # ==========================================
 st.markdown("---")
 plotted_data = st.session_state.app_data["my_team"] + st.session_state.app_data["compare_list"]
@@ -446,7 +484,6 @@ else:
         st.components.v1.html(html_content, height=650, scrolling=True)
 
     else:
-        # 1. 階梯防撞演算法
         lane_last_speed = {}
         MIN_DIST = 5
         for p in plotted_data:
@@ -464,11 +501,9 @@ else:
             .v-container {{ position:relative; width:100%; height:{axis_length}px; padding:50px 0; }} 
             .v-track {{ position:absolute; top:40px; bottom:40px; left:40px; width:4px; background:#00d2ff; box-shadow: 0 0 10px #00d2ff; }} 
             .v-arrow {{ position:absolute; top:25px; left:35px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:15px solid #00d2ff; filter: drop-shadow(0 -2px 5px #00d2ff); z-index:5; }}
-            /* ✨ 加入 transition 讓 z-index 變化自然，點擊時直接跳到最上層 */
             .v-node {{ position:absolute; left:40px; transform:translateY(-50%); display:flex; align-items:center; cursor:pointer; outline:none; transition: z-index 0s; }} 
             .v-node.active {{ z-index: 1000 !important; }}
             .v-dot {{ position:absolute; left:-5px; width:14px; height:14px; border:2px solid #fff; border-radius:50%; z-index:3; box-shadow: 0 0 4px rgba(0,0,0,0.8); }} 
-            /* ✨ 把連線的 z-index 設為 -1，讓它永遠躲在圖片後面 */
             .connector {{ position:absolute; left:2px; height:2px; background-color:#ecf0f1; opacity:0.5; z-index:-1; }}
             .v-content {{ position:relative; display:flex; flex-direction:column; align-items:center; z-index:2; }}
             .v-img {{ width:55px; filter:drop-shadow(0 0 5px #000); transition: transform 0.2s; }} 
@@ -481,48 +516,32 @@ else:
             <div class="v-arrow"></div>
             <div class="v-track"></div>
         """
-        
         for tick in range(((int(min_s)//10)+1)*10, int(max_s), 10):
             top_p = ((max_s - tick) / range_s) * 90 + 5
             html_content += f'<div style="position:absolute; top:{top_p}%; left:32px; width:16px; height:2px; background:rgba(0,210,255,0.5); transform:translateY(-50%);"></div><div style="position:absolute; top:{top_p}%; left:55px; transform:translateY(-50%); color:rgba(0,210,255,0.7); font-size:11px; font-weight:bold;">{tick}</div>'
-        
         for i, p in enumerate(plotted_data):
             top_p = ((max_s - p["speed"]) / range_s) * 90 + 5
-            
-            # ✨ 車道寬度從 85px 大幅增加到 115px，徹底拉開距離保證不撞車！
             margin_l = 40 + (p["lane"] * 115)
-            
             s = p["stats"]
             glow = "box-shadow: 0 0 12px 3px gold;" if p.get("is_team") else ""
             team_star = "⭐ " if p.get("is_team") else ""
-            
-            # ✨ 利用 100-i 動態調整 z-index，保證下方的線絕對穿在上方寶可夢的「背後」
             z_idx = 100 - i 
             
-            # ✨ 補回 onclick 指令，點擊 100% 復活
             html_content += f"""
             <div class="v-node" style="top:{top_p}%; z-index:{z_idx};" onclick="this.classList.toggle('active')">
                 <div class="v-dot" style="background:{p['color']}; {glow}"></div>
                 <div class="connector" style="width:{margin_l}px;"></div> 
-                
                 <div class="v-content" style="margin-left:{margin_l}px;">
                     <img class="v-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
                     <div class="v-label" style="border-color:{p['color']}">{team_star}{p['name']}<br>{p['speed']}</div>
                     <div class="v-tooltip" style="border: 2px solid {p['color']};">
                         <b style="color:{p['color']};">{team_star}{p['name']} ({p['config']})</b><br>
                         <hr style="margin: 4px 0; border-color: #555;">
-                        ❤️ 體力: {s[0]}<br>
-                        ⚔️ 攻擊: {s[1]}<br>
-                        🛡️ 防禦: {s[2]}<br>
-                        🔮 特攻: {s[3]}<br>
-                        ✨ 特防: {s[4]}<br>
-                        🏃 基礎: {s[5]}
+                        ❤️ 體力: {s[0]}<br>⚔️ 攻擊: {s[1]}<br>🛡️ 防禦: {s[2]}<br>🔮 特攻: {s[3]}<br>✨ 特防: {s[4]}<br>🏃 基礎: {s[5]}
                     </div>
                 </div>
             </div>"""
         html_content += f"{watermark_html}</div></div>"
-        
-        # 輔助關閉腳本：點擊其他地方時，把已展開的六圍表收起來
         html_content += """
         <script>
             document.addEventListener("click", function(event) {
@@ -532,6 +551,5 @@ else:
             });
         </script>
         """
-        
         st.components.v1.html(html_content, height=axis_length + 100, scrolling=False)
 
