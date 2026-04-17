@@ -564,8 +564,19 @@ else:
     </script>
     """
     
-    # 3. 判斷模式來給予不同的畫布高度 (手機版給 850 讓它大面積填滿螢幕)
-    if "電腦版" in display_mode:
-        st.components.v1.html(html_content, height=600)
-    else:
-        st.components.v1.html(html_content, height=850)
+    # ==========================================
+# 📈 最終渲染 (加入簽名檔)
+# ==========================================
+
+# 在 HTML 內容最後強行注入簽名檔 div
+sign_html = f'<div style="position:fixed; bottom:10px; right:20px; color:rgba(255,255,255,0.2); font-size:12px; z-index:9999; font-family:sans-serif;">© 2026 Ann_guitarist | PKM Speed Tier Project</div>'
+html_with_sign = html_content.replace('</div>\n</div>', f'{sign_html}</div>\n</div>')
+
+# 渲染畫布
+if "電腦版" in display_mode:
+    st.components.v1.html(html_with_sign, height=600)
+else:
+    st.components.v1.html(html_with_sign, height=850)
+
+# 頁面最下方也可以加一個簡單的 st 標註
+st.caption("Designed by Ann_guitarist. 數據僅供對戰參考。")
