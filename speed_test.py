@@ -483,12 +483,19 @@ else:
     # ----------------------------------------------------
     # 📱 模式 B：手機版 (垂直 Y 軸)
     # ----------------------------------------------------
+    # ----------------------------------------------------
+    # 📱 模式 B：手機版 (垂直 Y 軸)
+    # ----------------------------------------------------
     else:
         html_content += f"""
         <style>
-            .timeline-wrapper {{ width: 100%; height: 60vh; overflow-y: auto; overflow-x: hidden; background-color: #121212; border-radius: 12px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); position: relative; }}
-            .timeline-wrapper::-webkit-scrollbar {{ width: 8px; }}
-            .timeline-wrapper::-webkit-scrollbar-thumb {{ background: #555; border-radius: 4px; }}
+            /* 1. 把背景設為透明、移除邊框和陰影，並讓高度填滿 100% */
+            .timeline-wrapper {{ width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; background-color: transparent; position: relative; }}
+            
+            /* 2. 隱藏醜醜的滾動條，讓畫面完全乾淨延伸 */
+            .timeline-wrapper::-webkit-scrollbar {{ display: none; }}
+            .timeline-wrapper {{ -ms-overflow-style: none; scrollbar-width: none; }}
+            
             .timeline-container-v {{ position: relative; width: 100%; height: {axis_length}px; font-family: sans-serif; padding: 50px 0; }}
             .timeline-track-v {{ position: absolute; top: 40px; bottom: 40px; left: 50%; width: 4px; transform: translateX(-50%); background-color: #00d2ff; box-shadow: 0 0 10px #00d2ff; border-radius: 2px; }}
             .timeline-track-v::before {{ content: ''; position: absolute; top: -15px; left: -6px; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 15px solid #00d2ff; filter: drop-shadow(0 -2px 5px #00d2ff); }}
@@ -557,4 +564,8 @@ else:
     </script>
     """
     
-    st.components.v1.html(html_content, height=600)
+    # 3. 判斷模式來給予不同的畫布高度 (手機版給 850 讓它大面積填滿螢幕)
+    if "電腦版" in display_mode:
+        st.components.v1.html(html_content, height=600)
+    else:
+        st.components.v1.html(html_content, height=850)
