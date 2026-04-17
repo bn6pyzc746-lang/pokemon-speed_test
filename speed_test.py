@@ -506,4 +506,24 @@ if plotted_data:
         </div>
         """
 else:
-    html_content += "<div style='posit
+    html_content += "<div style='position:absolute; top:45%; width:100%; text-align:center; color:#7f8c8d; font-size:16px;'>目前名單為空，請從上方加入寶可夢！</div>"
+
+html_content += """
+    </div>
+</div>
+
+<script>
+    // 手機版完美的點擊收合邏輯
+    document.addEventListener("click", function(event) {
+        let clickedNode = event.target.closest(".pkm-node");
+        
+        document.querySelectorAll(".pkm-node").forEach(function(node) {
+            if (node !== clickedNode) { node.classList.remove("active"); }
+        });
+        
+        if (clickedNode) { clickedNode.classList.toggle("active"); }
+    });
+</script>
+"""
+
+st.components.v1.html(html_content, height=500)
