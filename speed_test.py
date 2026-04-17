@@ -13,7 +13,6 @@ st.markdown("""
     [data-testid="stHeader"] { background-color: #121212; }
     h1, h2, h3, label, p { color: #ecf0f1 !important; }
     .stButton>button { width: 100%; font-weight: bold; }
-    /* 隱藏側邊欄預設的空白，讓畫面更專業 */
     section[data-testid="stSidebar"] > div { padding-top: 2rem; }
 </style>
 """, unsafe_allow_html=True)
@@ -317,44 +316,26 @@ pokedex = {
 }
 
 # ==========================================
-# 💾 記憶功能邏輯 (強化版：優先 Session State)
+# 💾 記憶功能邏輯 (✨ 拔除共用 JSON，改為個人瀏覽器獨立暫存)
 # ==========================================
-DATA_FILE = "pokemon_saved_data.json"
-
-def load_data():
-    if "app_data" in st.session_state:
-        return st.session_state.app_data
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except: pass
-    return {"my_team": [], "compare_list": []}
+# 只要沒有這個變數，就幫使用者建立一個全新的乾淨清單
+if "app_data" not in st.session_state:
+    st.session_state.app_data = {"my_team": [], "compare_list": []}
 
 def save_data(data):
+    # 只更新當前使用者的網頁暫存，不再寫入伺服器檔案！
     st.session_state.app_data = data
-    try:
-        with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-    except:
-        pass # 避免雲端唯讀權限導致程式崩潰
-
-if "app_data" not in st.session_state:
-    st.session_state.app_data = load_data()
 
 # ==========================================
 # 🎮 控制面板
 # ==========================================
 st.title("⚡ 寶可夢速度線戰術板")
 
-# 模式切換
 display_mode = st.radio("切換檢視模式：", ["🖥️ 電腦版 (橫向 X 軸)", "📱 手機版 (垂直 Y 軸)"], horizontal=True)
 
 col1, col2 = st.columns(2)
-with col1:
-    selected_pkm = st.selectbox("🔍 選擇寶可夢：", list(pokedex.keys()))
-with col2:
-    speed_config = st.selectbox("⚡ 配置：", ["極速 (252努力+性格)", "準速 (252努力)", "極速+講究圍巾", "無速 (0努力)", "空間最慢"])
+with col1: selected_pkm = st.selectbox("🔍 選擇寶可夢：", list(pokedex.keys()))
+with col2: speed_config = st.selectbox("⚡ 配置：", ["極速 (252努力+性格)", "準速 (252努力)", "極速+講究圍巾", "無速 (0努力)", "空間最慢"])
 
 st.write("")
 col_btn1, col_btn2, col_btn3 = st.columns([2, 2, 1])
@@ -389,9 +370,6 @@ with col_btn3:
         save_data(st.session_state.app_data)
         st.rerun()
 
-# ==========================================
-# 🛠️ 管理面板
-# ==========================================
 with st.expander("🛠️ 管理名單與調整圖表比例", expanded=False):
     axis_length = st.slider("📏 調整速度線長度/高度 (越長越不擠)", 800, 8000, 2000, step=100)
     st.markdown("---")
@@ -420,12 +398,8 @@ else:
     min_s, max_s = min(plotted_data, key=lambda x: x["speed"])["speed"] - 10, max(plotted_data, key=lambda x: x["speed"])["speed"] + 20
     range_s = max_s - min_s if max_s != min_s else 100
 
-    # 簽名檔浮水印 HTML
     watermark_html = f'<div style="position:fixed; bottom:15px; right:20px; color:rgba(236,240,241,0.25); font-size:12px; font-style:italic; z-index:9999; pointer-events:none; font-family:sans-serif; text-shadow: 0 0 5px rgba(0,210,255,0.4);">Designed by Ann_guitarist | 寶可夢冠軍 1.0.2</div>'
 
-    # ----------------------------------------------------
-    # 🖥️ 電腦版 (橫向 X 軸)
-    # ----------------------------------------------------
     if "電腦版" in display_mode:
         html_content = f"""
         <style>
@@ -447,7 +421,6 @@ else:
             pos = ((tick - min_s) / range_s) * 95 + 2
             html_content += f'<div style="position:absolute; left:{pos}%; top:-8px; width:2px; height:20px; background:rgba(0,210,255,0.4);"></div><div style="position:absolute; left:{pos}%; top:15px; transform:translateX(-50%); color:rgba(0,210,255,0.7); font-size:12px; font-weight:bold;">{tick}</div>'
         html_content += "</div>"
-        
         for i, p in enumerate(plotted_data):
             pos = ((p["speed"] - min_s) / range_s) * 95 + 2
             is_top = i % 2 == 0
@@ -465,32 +438,22 @@ else:
                 <div class="tooltip-card" style="bottom: {tooltip_bottom}; top: {tooltip_top}; border: 2px solid {p['color']};">
                     <b style="color:{p['color']};">{team_star}{p['name']} ({p['config']})</b><br>
                     <hr style="margin: 4px 0; border-color: #444;">
-                    ❤️ 體力: {s[0]}<br>
-                    ⚔️ 攻擊: {s[1]}<br>
-                    🛡️ 防禦: {s[2]}<br>
-                    🔮 特攻: {s[3]}<br>
-                    ✨ 特防: {s[4]}<br>
-                    🏃 基礎速度: {s[5]}
-                </div>
-                </div>
+                    ❤️ 體力: {s[0]}<br>⚔️ 攻擊: {s[1]}<br>🛡️ 防禦: {s[2]}<br>🔮 特攻: {s[3]}<br>✨ 特防: {s[4]}<br>🏃 基礎: {s[5]}
+                </div></div>
                 {f'<div style="width:2px; background:#555; margin:0 auto; height:60px;"></div><div style="width:14px; height:14px; background:{p["color"]}; border:2px solid #fff; border-radius:50%; margin:0 auto; {glow}"></div>' if is_top else ''}
             </div>"""
         html_content += f"{watermark_html}</div></div>"
+        st.components.v1.html(html_content, height=650, scrolling=True)
 
-   # ----------------------------------------------------
-    # 📱 手機版 (垂直 Y 軸 - 終極階梯防撞版)
-    # ----------------------------------------------------
     else:
-        # 1. ✨ 智慧階梯防撞演算法：自動分配車道
+        # 1. 階梯防撞演算法
         lane_last_speed = {}
-        MIN_DIST = 5 # 速度差小於 5 點的，強制換到右邊的車道
-
-        for p in plotted_data: # plotted_data 已經是由小到大排序
+        MIN_DIST = 5
+        for p in plotted_data:
             lane = 0
             while True:
                 last_spd = lane_last_speed.get(lane, -999)
-                if abs(p["speed"] - last_spd) >= MIN_DIST:
-                    break
+                if abs(p["speed"] - last_spd) >= MIN_DIST: break
                 lane += 1
             lane_last_speed[lane] = p["speed"]
             p["lane"] = lane
@@ -499,26 +462,17 @@ else:
         <style>
             .v-wrap {{ width:100%; height:100%; background:transparent; position:relative; }} 
             .v-container {{ position:relative; width:100%; height:{axis_length}px; padding:50px 0; }} 
-            
-            /* 軌道移到左側 40px */
             .v-track {{ position:absolute; top:40px; bottom:40px; left:40px; width:4px; background:#00d2ff; box-shadow: 0 0 10px #00d2ff; }} 
-            /* ✨ 補上的獨立向量箭頭 */
             .v-arrow {{ position:absolute; top:25px; left:35px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:15px solid #00d2ff; filter: drop-shadow(0 -2px 5px #00d2ff); z-index:5; }}
-            
-            /* 節點統一固定在軌道上 */
-            .v-node {{ position:absolute; left:40px; transform:translateY(-50%); display:flex; align-items:center; cursor:pointer; outline:none; transition: z-index 0s; z-index: 10; }} 
-            
-            /* ✨ 點擊展開時，強制提到最上層，避免六圍卡片被別隻寶可夢蓋住 */
+            /* ✨ 加入 transition 讓 z-index 變化自然，點擊時直接跳到最上層 */
+            .v-node {{ position:absolute; left:40px; transform:translateY(-50%); display:flex; align-items:center; cursor:pointer; outline:none; transition: z-index 0s; }} 
             .v-node.active {{ z-index: 1000 !important; }}
-            
             .v-dot {{ position:absolute; left:-5px; width:14px; height:14px; border:2px solid #fff; border-radius:50%; z-index:3; box-shadow: 0 0 4px rgba(0,0,0,0.8); }} 
-            .connector {{ position:absolute; left:2px; height:2px; background-color:#ecf0f1; opacity:0.4; z-index:1; }}
-            
+            /* ✨ 把連線的 z-index 設為 -1，讓它永遠躲在圖片後面 */
+            .connector {{ position:absolute; left:2px; height:2px; background-color:#ecf0f1; opacity:0.5; z-index:-1; }}
             .v-content {{ position:relative; display:flex; flex-direction:column; align-items:center; z-index:2; }}
             .v-img {{ width:55px; filter:drop-shadow(0 0 5px #000); transition: transform 0.2s; }} 
             .v-label {{ background:rgba(30,40,50,0.95); color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; border:1px solid #444; text-align:center; line-height:1.4; margin-top:2px; white-space:nowrap; }} 
-            
-            /* 六圍卡片：強制白字 #ffffff */
             .v-tooltip {{ display:none; position:absolute; top:100%; left:50%; transform:translateX(-50%); width:135px; background:#14191e; border-radius:8px; padding:10px; z-index:100; font-size:12px; text-align:left; box-shadow: 0 5px 15px rgba(0,0,0,0.9); color:#ffffff; margin-top:5px; pointer-events:none; }} 
             .v-node.active .v-tooltip {{ display:block; }}
             .v-node.active .v-img {{ transform: scale(1.15); filter:drop-shadow(0 0 8px rgba(255,255,255,0.4)); }}
@@ -528,25 +482,26 @@ else:
             <div class="v-track"></div>
         """
         
-        # 畫 Y 軸刻度
         for tick in range(((int(min_s)//10)+1)*10, int(max_s), 10):
             top_p = ((max_s - tick) / range_s) * 90 + 5
             html_content += f'<div style="position:absolute; top:{top_p}%; left:32px; width:16px; height:2px; background:rgba(0,210,255,0.5); transform:translateY(-50%);"></div><div style="position:absolute; top:{top_p}%; left:55px; transform:translateY(-50%); color:rgba(0,210,255,0.7); font-size:11px; font-weight:bold;">{tick}</div>'
         
-        # 畫寶可夢
-        for p in plotted_data:
+        for i, p in enumerate(plotted_data):
             top_p = ((max_s - p["speed"]) / range_s) * 90 + 5
             
-            # ✨ 動態計算連接線長度：基礎 40px，每往右一車道增加 85px
-            margin_l = 40 + (p["lane"] * 85)
+            # ✨ 車道寬度從 85px 大幅增加到 115px，徹底拉開距離保證不撞車！
+            margin_l = 40 + (p["lane"] * 115)
             
             s = p["stats"]
             glow = "box-shadow: 0 0 12px 3px gold;" if p.get("is_team") else ""
             team_star = "⭐ " if p.get("is_team") else ""
             
-            # ⚠️ 注意：這裡拿掉了會抵消的 onclick 屬性，現在點擊會 100% 順暢！
+            # ✨ 利用 100-i 動態調整 z-index，保證下方的線絕對穿在上方寶可夢的「背後」
+            z_idx = 100 - i 
+            
+            # ✨ 補回 onclick 指令，點擊 100% 復活
             html_content += f"""
-            <div class="v-node" style="top:{top_p}%">
+            <div class="v-node" style="top:{top_p}%; z-index:{z_idx};" onclick="this.classList.toggle('active')">
                 <div class="v-dot" style="background:{p['color']}; {glow}"></div>
                 <div class="connector" style="width:{margin_l}px;"></div> 
                 
@@ -566,24 +521,17 @@ else:
                 </div>
             </div>"""
         html_content += f"{watermark_html}</div></div>"
-
-    # ----------------------------------------------------
-    # 🧠 共用：手機點擊收合腳本
-    # ----------------------------------------------------
-    html_content += """
-    <script>
-        document.addEventListener("click", function(event) {
-            let clickedNode = event.target.closest(".pkm-node") || event.target.closest(".v-node");
-            document.querySelectorAll(".pkm-node, .v-node").forEach(function(node) {
-                if (node !== clickedNode) { node.classList.remove("active"); }
+        
+        # 輔助關閉腳本：點擊其他地方時，把已展開的六圍表收起來
+        html_content += """
+        <script>
+            document.addEventListener("click", function(event) {
+                if(!event.target.closest(".v-node")) {
+                    document.querySelectorAll(".v-node").forEach(n => n.classList.remove("active"));
+                }
             });
-            if (clickedNode) { clickedNode.classList.toggle("active"); }
-        });
-    </script>
-    """
-    
-    if "手機版" in display_mode:
+        </script>
+        """
+        
         st.components.v1.html(html_content, height=axis_length + 100, scrolling=False)
-    else:
-        st.components.v1.html(html_content, height=650, scrolling=True)
 
