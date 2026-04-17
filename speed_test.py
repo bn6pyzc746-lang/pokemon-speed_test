@@ -478,48 +478,57 @@ else:
         html_content += f"{watermark_html}</div></div>"
 
    # ----------------------------------------------------
-    # 📱 手機版 (垂直 Y 軸 - 全新左側對齊防撞版)
+    # 📱 手機版 (垂直 Y 軸 - 終極階梯防撞版)
     # ----------------------------------------------------
     else:
-        # 1. 解決同速重疊問題 (計算偏移量)
-        speed_counts = {}
-        for p in plotted_data:
-            s = p["speed"]
-            p["tie_offset"] = speed_counts.get(s, 0)
-            speed_counts[s] = speed_counts.get(s, 0) + 1
+        # 1. ✨ 智慧階梯防撞演算法：自動分配車道
+        lane_last_speed = {}
+        MIN_DIST = 5 # 速度差小於 5 點的，強制換到右邊的車道
+
+        for p in plotted_data: # plotted_data 已經是由小到大排序
+            lane = 0
+            while True:
+                last_spd = lane_last_speed.get(lane, -999)
+                if abs(p["speed"] - last_spd) >= MIN_DIST:
+                    break
+                lane += 1
+            lane_last_speed[lane] = p["speed"]
+            p["lane"] = lane
 
         html_content = f"""
         <style>
-            /* 修正捲動卡頓：將內部捲動徹底關閉，讓畫布撐開 */
             .v-wrap {{ width:100%; height:100%; background:transparent; position:relative; }} 
             .v-container {{ position:relative; width:100%; height:{axis_length}px; padding:50px 0; }} 
             
             /* 軌道移到左側 40px */
             .v-track {{ position:absolute; top:40px; bottom:40px; left:40px; width:4px; background:#00d2ff; box-shadow: 0 0 10px #00d2ff; }} 
-            /* 獨立的向量箭頭 (絕對不會被切掉) */
+            /* ✨ 補上的獨立向量箭頭 */
             .v-arrow {{ position:absolute; top:25px; left:35px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:15px solid #00d2ff; filter: drop-shadow(0 -2px 5px #00d2ff); z-index:5; }}
             
             /* 節點統一固定在軌道上 */
-            .v-node {{ position:absolute; left:40px; transform:translateY(-50%); display:flex; align-items:center; cursor:pointer; outline:none; }} 
-            .v-dot {{ position:absolute; left:-5px; width:14px; height:14px; border:2px solid #fff; border-radius:50%; z-index:3; box-shadow: 0 0 4px rgba(0,0,0,0.8); }} 
-            .connector {{ position:absolute; left:2px; height:2px; background-color:#ecf0f1; opacity:0.6; z-index:1; }}
+            .v-node {{ position:absolute; left:40px; transform:translateY(-50%); display:flex; align-items:center; cursor:pointer; outline:none; transition: z-index 0s; z-index: 10; }} 
             
-            /* 內容區塊 (動態往右推) */
+            /* ✨ 點擊展開時，強制提到最上層，避免六圍卡片被別隻寶可夢蓋住 */
+            .v-node.active {{ z-index: 1000 !important; }}
+            
+            .v-dot {{ position:absolute; left:-5px; width:14px; height:14px; border:2px solid #fff; border-radius:50%; z-index:3; box-shadow: 0 0 4px rgba(0,0,0,0.8); }} 
+            .connector {{ position:absolute; left:2px; height:2px; background-color:#ecf0f1; opacity:0.4; z-index:1; }}
+            
             .v-content {{ position:relative; display:flex; flex-direction:column; align-items:center; z-index:2; }}
             .v-img {{ width:55px; filter:drop-shadow(0 0 5px #000); transition: transform 0.2s; }} 
             .v-label {{ background:rgba(30,40,50,0.95); color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; border:1px solid #444; text-align:center; line-height:1.4; margin-top:2px; white-space:nowrap; }} 
             
-            /* 六圍卡片：強制白字 #ffffff、靠左對齊，保證不切邊 */
-            .v-tooltip {{ display:none; position:absolute; top:100%; left:50%; transform:translateX(-50%); width:135px; background:#14191e; border-radius:8px; padding:10px; z-index:100; font-size:12px; text-align:left; box-shadow: 0 5px 15px #000; color:#ffffff; margin-top:5px; }} 
+            /* 六圍卡片：強制白字 #ffffff */
+            .v-tooltip {{ display:none; position:absolute; top:100%; left:50%; transform:translateX(-50%); width:135px; background:#14191e; border-radius:8px; padding:10px; z-index:100; font-size:12px; text-align:left; box-shadow: 0 5px 15px rgba(0,0,0,0.9); color:#ffffff; margin-top:5px; pointer-events:none; }} 
             .v-node.active .v-tooltip {{ display:block; }}
-            .v-node.active .v-img {{ transform: scale(1.15); }}
+            .v-node.active .v-img {{ transform: scale(1.15); filter:drop-shadow(0 0 8px rgba(255,255,255,0.4)); }}
         </style>
         <div class="v-wrap"><div class="v-container">
             <div class="v-arrow"></div>
             <div class="v-track"></div>
         """
         
-        # 畫 Y 軸刻度 (刻度線跟數字也跟著移到左邊)
+        # 畫 Y 軸刻度
         for tick in range(((int(min_s)//10)+1)*10, int(max_s), 10):
             top_p = ((max_s - tick) / range_s) * 90 + 5
             html_content += f'<div style="position:absolute; top:{top_p}%; left:32px; width:16px; height:2px; background:rgba(0,210,255,0.5); transform:translateY(-50%);"></div><div style="position:absolute; top:{top_p}%; left:55px; transform:translateY(-50%); color:rgba(0,210,255,0.7); font-size:11px; font-weight:bold;">{tick}</div>'
@@ -528,16 +537,16 @@ else:
         for p in plotted_data:
             top_p = ((max_s - p["speed"]) / range_s) * 90 + 5
             
-            # ✨ 同速防撞魔法：如果有人速度一樣，就往右多推 75px
-            offset_idx = p["tie_offset"]
-            margin_l = 25 + (offset_idx * 75) 
+            # ✨ 動態計算連接線長度：基礎 40px，每往右一車道增加 85px
+            margin_l = 40 + (p["lane"] * 85)
             
             s = p["stats"]
             glow = "box-shadow: 0 0 12px 3px gold;" if p.get("is_team") else ""
             team_star = "⭐ " if p.get("is_team") else ""
             
+            # ⚠️ 注意：這裡拿掉了會抵消的 onclick 屬性，現在點擊會 100% 順暢！
             html_content += f"""
-            <div class="v-node" style="top:{top_p}%" onclick="this.classList.toggle('active')">
+            <div class="v-node" style="top:{top_p}%">
                 <div class="v-dot" style="background:{p['color']}; {glow}"></div>
                 <div class="connector" style="width:{margin_l}px;"></div> 
                 
@@ -559,7 +568,7 @@ else:
         html_content += f"{watermark_html}</div></div>"
 
     # ----------------------------------------------------
-    # 🧠 渲染與解決雙重捲動
+    # 🧠 共用：手機點擊收合腳本
     # ----------------------------------------------------
     html_content += """
     <script>
@@ -573,8 +582,6 @@ else:
     </script>
     """
     
-    # ✨ 終極魔法：手機版將 scrolling 設為 False，並讓 iframe 高度完全等於軸長
-    # 這樣內部就不會產生捲動軸，完全依靠你手機瀏覽器本身的滑動，徹底解決卡頓！
     if "手機版" in display_mode:
         st.components.v1.html(html_content, height=axis_length + 100, scrolling=False)
     else:
