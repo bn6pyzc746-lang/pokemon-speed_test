@@ -488,47 +488,67 @@ else:
     # 📱 手機版 (垂直 Y 軸 - 終極膠囊與懸浮面板)
     # ----------------------------------------------------
     else:
-        # ✨ 自動階梯防撞演算法
-        lane_last_y = {0: -999, 1: -999, 2: -999}
-        MIN_GAP = 6 # 速度差距小於 6 就強制換車道
-        
+        # ✨ 1. 同速合併 (Group by Speed)
+        from collections import defaultdict
+        speed_groups = defaultdict(list)
         for p in plotted_data:
-            best_lane = 0
-            for l in range(3):
-                if abs(p["speed"] - lane_last_y[l]) >= MIN_GAP:
-                    best_lane = l
-                    break
+            speed_groups[p["speed"]].append(p)
+            
+        # 依速度由大到小排序
+        sorted_speeds = sorted(speed_groups.keys(), reverse=True)
+        
+        # ✨ 2. 動態推擠演算法 (確保 Y 軸安全距離)
+        # 計算每個速度群組的理論 Y 座標 (%)
+        visual_nodes = []
+        last_y_px = -999  # 記錄上一個節點的實際像素位置
+        
+        for spd in sorted_speeds:
+            # 原始理論百分比位置
+            raw_top_p = ((max_s - spd) / range_s) * 90 + 5
+            # 換算成絕對像素 (假設高度為 axis_length)
+            raw_top_px = (raw_top_p / 100) * axis_length
+            
+            # 如果距離上一個節點太近 (< 60px)，強制往下推擠
+            if raw_top_px - last_y_px < 60:
+                actual_top_px = last_y_px + 60
             else:
-                # 畫面緊繃時的防護機制
-                best_lane = min(lane_last_y, key=lambda k: lane_last_y[k])
+                actual_top_px = raw_top_px
                 
-            lane_last_y[best_lane] = p["speed"]
-            p["lane"] = best_lane
+            last_y_px = actual_top_px
+            actual_top_p = (actual_top_px / axis_length) * 100
+            
+            visual_nodes.append({
+                "speed": spd,
+                "top_p": actual_top_p,
+                "pokemons": speed_groups[spd]
+            })
+
+        # 這裡會因為強制推擠導致總長度變長，動態調整容器高度
+        final_height = max(axis_length, last_y_px + 100)
 
         html_content = f"""
         <style>
-            .v-wrap {{ width:100%; height:100%; background:transparent; position:relative; font-family: sans-serif; }} 
-            .v-container {{ position:relative; width:100%; height:{axis_length}px; padding:50px 0; }} 
+            .v-wrap {{ width:100%; height:100%; background:transparent; position:relative; font-family: sans-serif; overflow-x: hidden; }} 
+            .v-container {{ position:relative; width:100%; height:{final_height}px; padding:50px 0; }} 
             
-            /* 軌道與箭頭 */
-            .v-track {{ position:absolute; top:40px; bottom:40px; left:30px; width:4px; background:#00d2ff; box-shadow: 0 0 10px #00d2ff; border-radius:2px; }} 
-            .v-arrow {{ position:absolute; top:25px; left:25px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:15px solid #00d2ff; filter: drop-shadow(0 -2px 5px #00d2ff); z-index:5; }}
+            .v-track {{ position:absolute; top:40px; bottom:40px; left:40px; width:4px; background:#00d2ff; box-shadow: 0 0 10px #00d2ff; border-radius:2px; }} 
+            .v-arrow {{ position:absolute; top:25px; left:35px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:15px solid #00d2ff; filter: drop-shadow(0 -2px 5px #00d2ff); z-index:5; }}
             
-            /* 寶可夢節點底座 */
-            .v-node {{ position:absolute; left:30px; transform:translateY(-50%); display:flex; align-items:center; cursor:pointer; outline:none; z-index: 10; }} 
-            .v-node.active .pkm-pill {{ transform: scale(1.05); box-shadow: 0 0 15px rgba(255,255,255,0.3); border-width: 3px; }}
+            /* 新版：速度節點層 */
+            .tier-row {{ position:absolute; left:40px; width:calc(100% - 50px); display:flex; align-items:center; transform:translateY(-50%); z-index: 10; }}
+            .v-dot {{ flex-shrink:0; margin-left:-5px; width:14px; height:14px; background:#00d2ff; border:2px solid #fff; border-radius:50%; box-shadow: 0 0 8px #00d2ff; z-index:3; }}
+            .tier-speed {{ flex-shrink:0; margin-left:10px; color:#00d2ff; font-weight:bold; font-size:14px; text-shadow: 0 0 5px rgba(0,210,255,0.5); width:35px; }}
             
-            .v-dot {{ position:absolute; left:-5px; width:14px; height:14px; border:2px solid #fff; border-radius:50%; z-index:3; box-shadow: 0 0 4px rgba(0,0,0,0.8); }} 
+            /* 新版：橫向捲動的寶可夢容器 */
+            .pkm-scroll-box {{ display:flex; gap:10px; overflow-x:auto; padding:10px 5px; scrollbar-width:none; }}
+            .pkm-scroll-box::-webkit-scrollbar {{ display:none; }}
             
-            /* ✨ 連接線 (z-index:1 完美藏在膠囊後面) */
-            .connector {{ position:absolute; left:2px; height:2px; background-color:#888; opacity:0.6; z-index:1; }}
-            
-            /* 💊 全新的膠囊設計 (Pill UI)：自帶深色實體背景，不會被線切過去！ */
-            .pkm-pill {{ position:relative; display:flex; align-items:center; background-color:#161920; border: 2px solid; border-radius:40px; padding:2px 15px 2px 2px; z-index:2; transition: 0.2s; box-shadow: 0 5px 10px rgba(0,0,0,0.8); }}
-            .v-img {{ width:45px; filter:drop-shadow(0 0 3px #000); }} 
-            .pkm-info {{ margin-left:8px; color:#fff; font-size:11px; line-height:1.3; white-space:nowrap; text-align:left; }} 
+            .pkm-pill {{ position:relative; display:flex; align-items:center; background-color:#161920; border: 2px solid; border-radius:40px; padding:2px 12px 2px 2px; cursor:pointer; flex-shrink:0; box-shadow: 0 3px 6px rgba(0,0,0,0.6); transition: 0.2s; }}
+            .pkm-pill.active {{ transform:scale(1.05); box-shadow:0 0 15px rgba(255,255,255,0.3); border-width:3px; }}
+            .v-img {{ width:40px; filter:drop-shadow(0 0 3px #000); }} 
+            .pkm-info {{ margin-left:6px; color:#fff; font-size:11px; line-height:1.3; white-space:nowrap; text-align:left; font-weight:bold; }} 
 
-            /* 📊 獨立懸浮面板 (點擊後由 JS 在畫面彈出) */
+            /* 懸浮面板維持不變 */
             #hud {{ display:none; position:absolute; left:50%; transform:translateX(-50%); width:240px; background:rgba(20, 24, 30, 0.98); border: 2px solid; border-radius:12px; padding:15px; z-index:9999; box-shadow: 0 15px 35px rgba(0,0,0,0.9); backdrop-filter: blur(8px); }}
             .hud-title {{ font-size:13px; font-weight:bold; color:#fff; border-bottom:1px solid #444; padding-bottom:8px; margin-bottom:8px; text-align:center; }}
             .hud-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; color:#ddd; font-size:12px; }}
@@ -542,61 +562,47 @@ else:
             <div id="hud">
                 <div class="hud-title" id="hud-title"></div>
                 <div class="hud-grid">
-                    <div>❤️ 體力: <b id="hud-hp"></b></div>
-                    <div>🔮 特攻: <b id="hud-spa"></b></div>
-                    <div>⚔️ 攻擊: <b id="hud-atk"></b></div>
-                    <div>✨ 特防: <b id="hud-spd"></b></div>
-                    <div>🛡️ 防禦: <b id="hud-def"></b></div>
-                    <div>🏃 基礎: <b id="hud-spe"></b></div>
+                    <div>❤️ 體力: <b id="hud-hp"></b></div><div>🔮 特攻: <b id="hud-spa"></b></div>
+                    <div>⚔️ 攻擊: <b id="hud-atk"></b></div><div>✨ 特防: <b id="hud-spd"></b></div>
+                    <div>🛡️ 防禦: <b id="hud-def"></b></div><div>🏃 基礎: <b id="hud-spe"></b></div>
                 </div>
             </div>
         """
         
-        # 畫刻度
-        for tick in range(((int(min_s)//10)+1)*10, int(max_s), 10):
-            top_p = ((max_s - tick) / range_s) * 90 + 5
-            html_content += f'<div style="position:absolute; top:{top_p}%; left:22px; width:16px; height:2px; background:rgba(0,210,255,0.5); transform:translateY(-50%);"></div><div style="position:absolute; top:{top_p}%; left:45px; transform:translateY(-50%); color:rgba(0,210,255,0.7); font-size:11px; font-weight:bold;">{tick}</div>'
-        
-        # 畫寶可夢膠囊
-        for i, p in enumerate(plotted_data):
-            top_p = ((max_s - p["speed"]) / range_s) * 90 + 5
-            
-            # ✨ 完美距離：將膠囊拉得很開 (30, 140, 250px) 填滿手機畫面
-            margin_l = 30 + (p["lane"] * 110)
-            
-            s = p["stats"]
-            color = p['color']
-            glow = "box-shadow: 0 0 10px gold; border-color: gold;" if p.get("is_team") else f"border-color: {color};"
-            team_star = "⭐ " if p.get("is_team") else ""
-            z_idx = 100 - i 
-            
-            # 將資料打包進 HTML 標籤，給 JS 讀取
-            hud_data = f"data-title='{team_star}{p['name']} ({p['config']})<br><span style=\"color:{color};\">速度: {p['speed']}</span>' data-color='{color}' data-hp='{s[0]}' data-atk='{s[1]}' data-def='{s[2]}' data-spa='{s[3]}' data-spd='{s[4]}' data-spe='{s[5]}'"
-            
+        # 畫整合後的節點與橫向寶可夢列表
+        for node in visual_nodes:
+            spd = node["speed"]
             html_content += f"""
-            <div class="v-node" style="top:{top_p}%; z-index:{z_idx};" onclick="showHUD(this, event)" {hud_data}>
-                <div class="v-dot" style="background:{color}; {glow}"></div>
-                <div class="connector" style="width:{margin_l}px;"></div> 
+            <div class="tier-row" style="top:{node['top_p']}%;">
+                <div class="v-dot"></div>
+                <div class="tier-speed">{spd}</div>
+                <div class="pkm-scroll-box">
+            """
+            
+            for p in node["pokemons"]:
+                s = p["stats"]
+                color = p['color']
+                glow = "box-shadow: 0 0 10px gold; border-color: gold;" if p.get("is_team") else f"border-color: {color};"
+                team_star = "⭐ " if p.get("is_team") else ""
                 
-                <div class="pkm-pill" style="margin-left:{margin_l}px; border-color:{color};">
-                    <img class="v-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
-                    <div class="pkm-info">
-                        <span style="color:{color}; font-weight:bold;">{team_star}{p['name']}</span><br>
-                        {p['speed']}
+                hud_data = f"data-title='{team_star}{p['name']} ({p['config']})<br><span style=\"color:{color};\">速度: {spd}</span>' data-color='{color}' data-hp='{s[0]}' data-atk='{s[1]}' data-def='{s[2]}' data-spa='{s[3]}' data-spd='{s[4]}' data-spe='{s[5]}'"
+                
+                html_content += f"""
+                    <div class="pkm-pill" style="{glow}" onclick="showHUD(this, event)" {hud_data}>
+                        <img class="v-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
+                        <div class="pkm-info" style="color:{color};">{team_star}{p['name']}<br><span style="color:#aaa; font-weight:normal;">{p['config']}</span></div>
                     </div>
-                </div>
-            </div>"""
+                """
+            html_content += "</div></div>"
             
         html_content += f"{watermark_html}</div></div>"
         
-        # 🧠 JS 觸發器：負責把隱藏的面板打開，並塞入資料
         html_content += """
         <script>
             function showHUD(element, event) {
-                event.stopPropagation(); // 阻止點擊事件擴散
+                event.stopPropagation();
                 let hud = document.getElementById("hud");
                 
-                // 把膠囊裡的資料塞進面板
                 document.getElementById("hud-title").innerHTML = element.getAttribute("data-title");
                 document.getElementById("hud-hp").innerText = element.getAttribute("data-hp");
                 document.getElementById("hud-atk").innerText = element.getAttribute("data-atk");
@@ -606,25 +612,26 @@ else:
                 document.getElementById("hud-spe").innerText = element.getAttribute("data-spe");
                 hud.style.borderColor = element.getAttribute("data-color");
                 
-                // ✨ 智慧定位：讓面板精準出現在你點擊的膠囊正下方 30px 處
-                let nodeY = element.offsetTop;
-                hud.style.top = (nodeY + 30) + "px";
+                // 計算點擊元素在整個視窗中的絕對高度
+                let rect = element.getBoundingClientRect();
+                let wrap = document.getElementById("v-wrap").getBoundingClientRect();
+                let absoluteTop = rect.top - wrap.top + document.getElementById("v-wrap").scrollTop;
+                
+                hud.style.top = (absoluteTop + 50) + "px";
                 hud.style.display = "block";
                 
-                // 視覺效果切換
-                document.querySelectorAll(".v-node").forEach(n => n.classList.remove("active"));
+                document.querySelectorAll(".pkm-pill").forEach(n => n.classList.remove("active"));
                 element.classList.add("active");
             }
             
-            // 點擊背景任何地方，就把面板收起來
             document.addEventListener("click", function(event) {
                 let hud = document.getElementById("hud");
                 if(!event.target.closest("#hud")) {
                     hud.style.display = "none";
-                    document.querySelectorAll(".v-node").forEach(n => n.classList.remove("active"));
+                    document.querySelectorAll(".pkm-pill").forEach(n => n.classList.remove("active"));
                 }
             });
         </script>
         """
-        st.components.v1.html(html_content, height=axis_length + 100, scrolling=False)
+        st.components.v1.html(html_content, height=final_height + 50, scrolling=False)
 
