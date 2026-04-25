@@ -424,7 +424,7 @@ with st.expander("🛠️ 管理名單與調整圖表比例", expanded=False):
     render_list("compare_list", "🔍 比較對象")
 
 # ==========================================
-# 📈 繪圖核心邏輯
+# 📈 繪圖核心邏輯 (X/Y 軸 UI 統一進化版)
 # ==========================================
 st.markdown("---")
 plotted_data = st.session_state.app_data["my_team"] + st.session_state.app_data["compare_list"]
@@ -432,133 +432,145 @@ plotted_data = st.session_state.app_data["my_team"] + st.session_state.app_data[
 if not plotted_data:
     st.markdown("<div style='text-align:center; color:#7f8c8d; font-size:18px; padding: 50px;'>目前名單為空，請從上方加入寶可夢！</div>", unsafe_allow_html=True)
 else:
-    plotted_data = sorted(plotted_data, key=lambda x: x["speed"], reverse=True)
-    min_s = min(plotted_data, key=lambda x: x["speed"])["speed"] - 10
-    max_s = max(plotted_data, key=lambda x: x["speed"])["speed"] + 20
+    # 基礎數據計算
+    from collections import defaultdict
+    speed_groups = defaultdict(list)
+    for p in plotted_data:
+        speed_groups[p["speed"]].append(p)
+    
+    min_s = min(speed_groups.keys()) - 10
+    max_s = max(speed_groups.keys()) + 20
     range_s = max_s - min_s if max_s != min_s else 100
-
+    
     watermark_html = f'<div style="position:fixed; bottom:15px; right:20px; color:rgba(236,240,241,0.25); font-size:12px; font-style:italic; z-index:9999; pointer-events:none; font-family:sans-serif; text-shadow: 0 0 5px rgba(0,210,255,0.4);">Designed by Ann_guitarist | 寶可夢冠軍 1.0.2</div>'
 
+    # ----------------------------------------------------
+    # 🖥️ 電腦版 (橫向 X 軸 - 膠囊堆疊版)
+    # ----------------------------------------------------
     if "電腦版" in display_mode:
-        html_content = f"""
-        <style>
-            .timeline-container {{ position: relative; width: 100%; height: 550px; overflow-x: auto; background-color: transparent; }}
-            .timeline-container::-webkit-scrollbar {{ height: 10px; }}
-            .timeline-container::-webkit-scrollbar-thumb {{ background: #444; border-radius: 5px; }}
-            .scroll-area {{ width: {axis_length}px; position: relative; height: 100%; padding: 0 50px; }}
-            .timeline-track {{ position: absolute; top: 50%; left: 50px; right: 50px; height: 4px; background: #00d2ff; box-shadow: 0 0 10px #00d2ff; }}
-            .timeline-track::after {{ content: ''; position: absolute; right: -15px; top: -6px; border-top: 8px solid transparent; border-bottom: 8px solid transparent; border-left: 15px solid #00d2ff; }}
-            .pkm-node {{ position: absolute; transform: translateX(-50%); text-align: center; width: 100px; z-index: 10; cursor: pointer; }}
-            .pkm-img {{ width: 60px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }}
-            .pkm-label {{ background: rgba(44, 62, 80, 0.95); color: #fff; padding: 4px; border-radius: 4px; font-size: 11px; margin-top: 5px; border: 1px solid #34495e; }}
-            .tooltip-card {{ display: none; width: 130px; background: #14191e; border-radius: 8px; padding: 10px; position: absolute; z-index: 1000; left: 50%; transform: translateX(-50%); box-shadow: 0 5px 15px #000; font-size: 12px; text-align: left; }}
-            .pkm-node.active .tooltip-card, .pkm-node:hover .tooltip-card {{ display: block; }}
-        </style>
-        <div class="timeline-container"><div class="scroll-area"><div class="timeline-track">
-        """
-        for tick in range(((int(min_s)//10)+1)*10, int(max_s), 10):
-            pos = ((tick - min_s) / range_s) * 95 + 2
-            html_content += f'<div style="position:absolute; left:{pos}%; top:-8px; width:2px; height:20px; background:rgba(0,210,255,0.4);"></div><div style="position:absolute; left:{pos}%; top:15px; transform:translateX(-50%); color:rgba(0,210,255,0.7); font-size:12px; font-weight:bold;">{tick}</div>'
-        html_content += "</div>"
-        for i, p in enumerate(plotted_data):
-            pos = ((p["speed"] - min_s) / range_s) * 95 + 2
-            is_top = i % 2 == 0
-            s = p["stats"]
-            glow = "box-shadow: 0 0 12px 3px gold;" if p.get("is_team") else ""
-            team_star = "⭐ " if p.get("is_team") else ""
-            tooltip_bottom = "110%" if not is_top else "auto"
-            tooltip_top = "auto" if not is_top else "110%"
-            
-            html_content += f"""
-            <div class="pkm-node" style="left:{pos}%; top:{'calc(50% - 170px)' if is_top else '50%'};" onclick="this.classList.toggle('active')">
-                {'' if is_top else f'<div style="width:14px; height:14px; background:{p["color"]}; border:2px solid #fff; border-radius:50%; margin:0 auto; {glow}"></div><div style="width:2px; background:#555; margin:0 auto; height:60px;"></div>'}
-                <div style="position:relative;"><img class="pkm-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
-                <div class="pkm-label">{team_star}{p['name']}<br>{p['speed']}</div>
-                <div class="tooltip-card" style="bottom: {tooltip_bottom}; top: {tooltip_top}; border: 2px solid {p['color']};">
-                    <b style="color:{p['color']};">{team_star}{p['name']} ({p['config']})</b><br>
-                    <hr style="margin: 4px 0; border-color: #444;">
-                    ❤️ 體力: {s[0]}<br>⚔️ 攻擊: {s[1]}<br>🛡️ 防禦: {s[2]}<br>🔮 特攻: {s[3]}<br>✨ 特防: {s[4]}<br>🏃 基礎: {s[5]}
-                </div></div>
-                {f'<div style="width:2px; background:#555; margin:0 auto; height:60px;"></div><div style="width:14px; height:14px; background:{p["color"]}; border:2px solid #fff; border-radius:50%; margin:0 auto; {glow}"></div>' if is_top else ''}
-            </div>"""
-        html_content += f"{watermark_html}</div></div>"
-        st.components.v1.html(html_content, height=650, scrolling=True)
-
-    # ----------------------------------------------------
-    # 📱 手機版 (垂直 Y 軸 - 終極膠囊與懸浮面板)
-    # ----------------------------------------------------
-    else:
-        # ✨ 1. 同速合併 (Group by Speed)
-        from collections import defaultdict
-        speed_groups = defaultdict(list)
-        for p in plotted_data:
-            speed_groups[p["speed"]].append(p)
-            
-        # 依速度由大到小排序
-        sorted_speeds = sorted(speed_groups.keys(), reverse=True)
-        
-        # ✨ 2. 動態推擠演算法 (確保 Y 軸安全距離)
-        # 計算每個速度群組的理論 Y 座標 (%)
+        sorted_speeds = sorted(speed_groups.keys()) # X 軸由左到右 (由小到大)
         visual_nodes = []
-        last_y_px = -999  # 記錄上一個節點的實際像素位置
+        last_x_px = -999
+        MIN_X_GAP = 130 # X 軸膠囊寬度約 120px，設定安全距離
         
         for spd in sorted_speeds:
-            # 原始理論百分比位置
-            raw_top_p = ((max_s - spd) / range_s) * 90 + 5
-            # 換算成絕對像素 (假設高度為 axis_length)
-            raw_top_px = (raw_top_p / 100) * axis_length
+            raw_left_p = ((spd - min_s) / range_s) * 90 + 5
+            raw_left_px = (raw_left_p / 100) * axis_length
             
-            # 如果距離上一個節點太近 (< 60px)，強制往下推擠
-            if raw_top_px - last_y_px < 60:
-                actual_top_px = last_y_px + 60
+            if raw_left_px - last_x_px < MIN_X_GAP:
+                actual_left_px = last_x_px + MIN_X_GAP
             else:
-                actual_top_px = raw_top_px
-                
+                actual_left_px = raw_left_px
+            
+            last_x_px = actual_left_px
+            actual_left_p = (actual_left_px / axis_length) * 100
+            visual_nodes.append({"speed": spd, "left_p": actual_left_p, "pokemons": speed_groups[spd]})
+
+        final_width = max(axis_length, last_x_px + 200)
+
+        html_content = f"""
+        <style>
+            .h-wrap {{ width:100%; height:550px; overflow-x:auto; background:transparent; position:relative; font-family:sans-serif; }}
+            .h-container {{ position:relative; width:{final_width}px; height:100%; padding:0 50px; }}
+            .h-track {{ position:absolute; top:400px; left:40px; right:40px; height:4px; background:#00d2ff; box-shadow: 0 0 10px #00d2ff; border-radius:2px; }}
+            .h-arrow {{ position:absolute; top:393px; right:25px; width:0; height:0; border-top:8px solid transparent; border-bottom:8px solid transparent; border-left:15px solid #00d2ff; filter:drop-shadow(2px 0 5px #00d2ff); }}
+            
+            .tier-col {{ position:absolute; bottom:150px; display:flex; flex-direction:column-reverse; align-items:center; transform:translateX(-50%); gap:10px; }}
+            .v-line {{ width:2px; height:20px; background:#00d2ff; opacity:0.6; margin-bottom:-10px; }}
+            .h-speed {{ color:#00d2ff; font-weight:bold; font-size:14px; margin-top:10px; text-align:center; }}
+            
+            .pkm-pill {{ position:relative; display:flex; align-items:center; background-color:#161920; border:2px solid; border-radius:40px; padding:2px 12px 2px 2px; cursor:pointer; box-shadow:0 3px 6px rgba(0,0,0,0.6); transition:0.2s; min-width:110px; }}
+            .pkm-pill.active {{ transform:scale(1.1); box-shadow:0 0 15px rgba(255,255,255,0.3); border-width:3px; z-index:100; }}
+            .v-img {{ width:40px; filter:drop-shadow(0 0 3px #000); }}
+            .pkm-info {{ margin-left:6px; color:#fff; font-size:11px; line-height:1.2; white-space:nowrap; text-align:left; font-weight:bold; }}
+
+            #hud {{ display:none; position:fixed; top:80px; left:50%; transform:translateX(-50%); width:260px; background:rgba(20,24,30,0.98); border:2px solid; border-radius:12px; padding:15px; z-index:9999; box-shadow:0 15px 35px rgba(0,0,0,0.9); backdrop-filter:blur(8px); color:#fff; }}
+            .hud-title {{ font-size:14px; font-weight:bold; border-bottom:1px solid #444; padding-bottom:8px; margin-bottom:8px; text-align:center; }}
+            .hud-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:12px; }}
+        </style>
+        <div class="h-wrap" id="main-wrap"><div class="h-container">
+            <div id="hud">
+                <div class="hud-title" id="hud-title"></div>
+                <div class="hud-grid">
+                    <div>❤️ 體力: <b id="hud-hp"></b></div><div>🔮 特攻: <b id="hud-spa"></b></div>
+                    <div>⚔️ 攻擊: <b id="hud-atk"></b></div><div>✨ 特防: <b id="hud-spd"></b></div>
+                    <div>🛡️ 防禦: <b id="hud-def"></b></div><div>🏃 基礎: <b id="hud-spe"></b></div>
+                </div>
+            </div>
+            <div class="h-track"></div><div class="h-arrow"></div>
+        """
+        for node in visual_nodes:
+            spd = node["speed"]
+            html_content += f'<div class="tier-col" style="left:{node["left_p"]}%;">'
+            for p in node["pokemons"]:
+                s, color = p["stats"], p['color']
+                glow = "box-shadow:0 0 10px gold; border-color:gold;" if p.get("is_team") else f"border-color:{color};"
+                team_star = "⭐ " if p.get("is_team") else ""
+                hud_data = f"data-title='{team_star}{p['name']} ({p['config']})<br><span style=\"color:{color};\">速度: {spd}</span>' data-color='{color}' data-hp='{s[0]}' data-atk='{s[1]}' data-def='{s[2]}' data-spa='{s[3]}' data-spd='{s[4]}' data-spe='{s[5]}'"
+                html_content += f'<div class="pkm-pill" style="{glow}" onclick="showHUD(this, event)" {hud_data}><img class="v-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png"><div class="pkm-info" style="color:{color};">{team_star}{p["name"]}<br><span style="color:#aaa; font-weight:normal;">{p["config"]}</span></div></div>'
+            html_content += f'<div class="v-line"></div><div class="h-speed">{spd}</div></div>'
+            
+        html_content += f"{watermark_html}</div></div>"
+        html_content += """<script>
+            function showHUD(el, ev) {
+                ev.stopPropagation();
+                let hud = document.getElementById("hud");
+                document.getElementById("hud-title").innerHTML = el.getAttribute("data-title");
+                document.getElementById("hud-hp").innerText = el.getAttribute("data-hp");
+                document.getElementById("hud-atk").innerText = el.getAttribute("data-atk");
+                document.getElementById("hud-def").innerText = el.getAttribute("data-def");
+                document.getElementById("hud-spa").innerText = el.getAttribute("data-spa");
+                document.getElementById("hud-spd").innerText = el.getAttribute("data-spd");
+                document.getElementById("hud-spe").innerText = el.getAttribute("data-spe");
+                hud.style.borderColor = el.getAttribute("data-color");
+                hud.style.display = "block";
+                document.querySelectorAll(".pkm-pill").forEach(n => n.classList.remove("active"));
+                el.classList.add("active");
+            }
+            document.addEventListener("click", (e) => { if(!e.target.closest("#hud")) { document.getElementById("hud").style.display="none"; document.querySelectorAll(".pkm-pill").forEach(n => n.classList.remove("active")); } });
+        </script>"""
+        st.components.v1.html(html_content, height=600, scrolling=True)
+
+    # ----------------------------------------------------
+    # 📱 手機版 (垂直 Y 軸 - 保持原本優秀的 UI)
+    # ----------------------------------------------------
+    else:
+        sorted_speeds = sorted(speed_groups.keys(), reverse=True)
+        visual_nodes = []
+        last_y_px = -999
+        MIN_Y_GAP = 70
+        
+        for spd in sorted_speeds:
+            raw_top_p = ((max_s - spd) / range_s) * 90 + 5
+            raw_top_px = (raw_top_p / 100) * axis_length
+            if raw_top_px - last_y_px < MIN_Y_GAP: actual_top_px = last_y_px + MIN_Y_GAP
+            else: actual_top_px = raw_top_px
             last_y_px = actual_top_px
             actual_top_p = (actual_top_px / axis_length) * 100
-            
-            visual_nodes.append({
-                "speed": spd,
-                "top_p": actual_top_p,
-                "pokemons": speed_groups[spd]
-            })
+            visual_nodes.append({"speed": spd, "top_p": actual_top_p, "pokemons": speed_groups[spd]})
 
-        # 這裡會因為強制推擠導致總長度變長，動態調整容器高度
         final_height = max(axis_length, last_y_px + 100)
 
         html_content = f"""
         <style>
             .v-wrap {{ width:100%; height:100%; background:transparent; position:relative; font-family: sans-serif; overflow-x: hidden; }} 
             .v-container {{ position:relative; width:100%; height:{final_height}px; padding:50px 0; }} 
-            
             .v-track {{ position:absolute; top:40px; bottom:40px; left:40px; width:4px; background:#00d2ff; box-shadow: 0 0 10px #00d2ff; border-radius:2px; }} 
             .v-arrow {{ position:absolute; top:25px; left:35px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:15px solid #00d2ff; filter: drop-shadow(0 -2px 5px #00d2ff); z-index:5; }}
-            
-            /* 新版：速度節點層 */
             .tier-row {{ position:absolute; left:40px; width:calc(100% - 50px); display:flex; align-items:center; transform:translateY(-50%); z-index: 10; }}
             .v-dot {{ flex-shrink:0; margin-left:-5px; width:14px; height:14px; background:#00d2ff; border:2px solid #fff; border-radius:50%; box-shadow: 0 0 8px #00d2ff; z-index:3; }}
-            .tier-speed {{ flex-shrink:0; margin-left:10px; color:#00d2ff; font-weight:bold; font-size:14px; text-shadow: 0 0 5px rgba(0,210,255,0.5); width:35px; }}
-            
-            /* 新版：橫向捲動的寶可夢容器 */
+            .tier-speed {{ flex-shrink:0; margin-left:10px; color:#00d2ff; font-weight:bold; font-size:14px; width:35px; }}
             .pkm-scroll-box {{ display:flex; gap:10px; overflow-x:auto; padding:10px 5px; scrollbar-width:none; }}
-            .pkm-scroll-box::-webkit-scrollbar {{ display:none; }}
-            
             .pkm-pill {{ position:relative; display:flex; align-items:center; background-color:#161920; border: 2px solid; border-radius:40px; padding:2px 12px 2px 2px; cursor:pointer; flex-shrink:0; box-shadow: 0 3px 6px rgba(0,0,0,0.6); transition: 0.2s; }}
             .pkm-pill.active {{ transform:scale(1.05); box-shadow:0 0 15px rgba(255,255,255,0.3); border-width:3px; }}
             .v-img {{ width:40px; filter:drop-shadow(0 0 3px #000); }} 
             .pkm-info {{ margin-left:6px; color:#fff; font-size:11px; line-height:1.3; white-space:nowrap; text-align:left; font-weight:bold; }} 
-
-            /* 懸浮面板維持不變 */
-            #hud {{ display:none; position:absolute; left:50%; transform:translateX(-50%); width:240px; background:rgba(20, 24, 30, 0.98); border: 2px solid; border-radius:12px; padding:15px; z-index:9999; box-shadow: 0 15px 35px rgba(0,0,0,0.9); backdrop-filter: blur(8px); }}
-            .hud-title {{ font-size:13px; font-weight:bold; color:#fff; border-bottom:1px solid #444; padding-bottom:8px; margin-bottom:8px; text-align:center; }}
-            .hud-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; color:#ddd; font-size:12px; }}
-            .hud-grid b {{ color: #fff; }}
+            #hud {{ display:none; position:absolute; left:50%; transform:translateX(-50%); width:240px; background:rgba(20, 24, 30, 0.98); border: 2px solid; border-radius:12px; padding:15px; z-index:9999; box-shadow: 0 15px 35px rgba(0,0,0,0.9); backdrop-filter: blur(8px); color:#fff; }}
+            .hud-title {{ font-size:13px; font-weight:bold; border-bottom:1px solid #444; padding-bottom:8px; margin-bottom:8px; text-align:center; }}
+            .hud-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:12px; }}
         </style>
-        
         <div class="v-wrap" id="v-wrap"><div class="v-container">
-            <div class="v-arrow"></div>
-            <div class="v-track"></div>
-            
+            <div class="v-arrow"></div><div class="v-track"></div>
             <div id="hud">
                 <div class="hud-title" id="hud-title"></div>
                 <div class="hud-grid">
@@ -568,70 +580,38 @@ else:
                 </div>
             </div>
         """
-        
-        # 畫整合後的節點與橫向寶可夢列表
         for node in visual_nodes:
             spd = node["speed"]
-            html_content += f"""
-            <div class="tier-row" style="top:{node['top_p']}%;">
-                <div class="v-dot"></div>
-                <div class="tier-speed">{spd}</div>
-                <div class="pkm-scroll-box">
-            """
-            
+            html_content += f'<div class="tier-row" style="top:{node["top_p"]}%;"><div class="v-dot"></div><div class="tier-speed">{spd}</div><div class="pkm-scroll-box">'
             for p in node["pokemons"]:
-                s = p["stats"]
-                color = p['color']
+                s, color = p["stats"], p['color']
                 glow = "box-shadow: 0 0 10px gold; border-color: gold;" if p.get("is_team") else f"border-color: {color};"
                 team_star = "⭐ " if p.get("is_team") else ""
-                
                 hud_data = f"data-title='{team_star}{p['name']} ({p['config']})<br><span style=\"color:{color};\">速度: {spd}</span>' data-color='{color}' data-hp='{s[0]}' data-atk='{s[1]}' data-def='{s[2]}' data-spa='{s[3]}' data-spd='{s[4]}' data-spe='{s[5]}'"
-                
-                html_content += f"""
-                    <div class="pkm-pill" style="{glow}" onclick="showHUD(this, event)" {hud_data}>
-                        <img class="v-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png">
-                        <div class="pkm-info" style="color:{color};">{team_star}{p['name']}<br><span style="color:#aaa; font-weight:normal;">{p['config']}</span></div>
-                    </div>
-                """
+                html_content += f'<div class="pkm-pill" style="{glow}" onclick="showHUD(this, event)" {hud_data}><img class="v-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png"><div class="pkm-info" style="color:{color};">{team_star}{p["name"]}<br><span style="color:#aaa; font-weight:normal;">{p["config"]}</span></div></div>'
             html_content += "</div></div>"
             
         html_content += f"{watermark_html}</div></div>"
-        
-        html_content += """
-        <script>
-            function showHUD(element, event) {
-                event.stopPropagation();
+        html_content += """<script>
+            function showHUD(el, ev) {
+                ev.stopPropagation();
                 let hud = document.getElementById("hud");
-                
-                document.getElementById("hud-title").innerHTML = element.getAttribute("data-title");
-                document.getElementById("hud-hp").innerText = element.getAttribute("data-hp");
-                document.getElementById("hud-atk").innerText = element.getAttribute("data-atk");
-                document.getElementById("hud-def").innerText = element.getAttribute("data-def");
-                document.getElementById("hud-spa").innerText = element.getAttribute("data-spa");
-                document.getElementById("hud-spd").innerText = element.getAttribute("data-spd");
-                document.getElementById("hud-spe").innerText = element.getAttribute("data-spe");
-                hud.style.borderColor = element.getAttribute("data-color");
-                
-                // 計算點擊元素在整個視窗中的絕對高度
-                let rect = element.getBoundingClientRect();
+                document.getElementById("hud-title").innerHTML = el.getAttribute("data-title");
+                document.getElementById("hud-hp").innerText = el.getAttribute("data-hp");
+                document.getElementById("hud-atk").innerText = el.getAttribute("data-atk");
+                document.getElementById("hud-def").innerText = el.getAttribute("data-def");
+                document.getElementById("hud-spa").innerText = el.getAttribute("data-spa");
+                document.getElementById("hud-spd").innerText = el.getAttribute("data-spd");
+                document.getElementById("hud-spe").innerText = el.getAttribute("data-spe");
+                hud.style.borderColor = el.getAttribute("data-color");
+                let rect = el.getBoundingClientRect();
                 let wrap = document.getElementById("v-wrap").getBoundingClientRect();
-                let absoluteTop = rect.top - wrap.top + document.getElementById("v-wrap").scrollTop;
-                
-                hud.style.top = (absoluteTop + 50) + "px";
+                hud.style.top = (rect.top - wrap.top + document.getElementById("v-wrap").scrollTop + 50) + "px";
                 hud.style.display = "block";
-                
                 document.querySelectorAll(".pkm-pill").forEach(n => n.classList.remove("active"));
-                element.classList.add("active");
+                el.classList.add("active");
             }
-            
-            document.addEventListener("click", function(event) {
-                let hud = document.getElementById("hud");
-                if(!event.target.closest("#hud")) {
-                    hud.style.display = "none";
-                    document.querySelectorAll(".pkm-pill").forEach(n => n.classList.remove("active"));
-                }
-            });
-        </script>
-        """
+            document.addEventListener("click", (e) => { if(!e.target.closest("#hud")) { document.getElementById("hud").style.display="none"; document.querySelectorAll(".pkm-pill").forEach(n => n.classList.remove("active")); } });
+        </script>"""
         st.components.v1.html(html_content, height=final_height + 50, scrolling=False)
 
