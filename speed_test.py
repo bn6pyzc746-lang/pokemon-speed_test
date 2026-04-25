@@ -445,13 +445,13 @@ else:
     watermark_html = f'<div style="position:fixed; bottom:15px; right:20px; color:rgba(236,240,241,0.25); font-size:12px; font-style:italic; z-index:9999; pointer-events:none; font-family:sans-serif; text-shadow: 0 0 5px rgba(0,210,255,0.4);">Designed by Ann_guitarist | 寶可夢冠軍 1.0.2</div>'
 
     # ----------------------------------------------------
-    # 🖥️ 電腦版 (橫向 X 軸 - 膠囊堆疊版)
+    # 🖥️ 電腦版 (橫向 X 軸 - 懸浮生長版)
     # ----------------------------------------------------
     if "電腦版" in display_mode:
-        sorted_speeds = sorted(speed_groups.keys()) # X 軸由左到右 (由小到大)
+        sorted_speeds = sorted(speed_groups.keys()) 
         visual_nodes = []
         last_x_px = -999
-        MIN_X_GAP = 130 # X 軸膠囊寬度約 120px，設定安全距離
+        MIN_X_GAP = 140 # 增加間距，讓名字不重疊
         
         for spd in sorted_speeds:
             raw_left_p = ((spd - min_s) / range_s) * 90 + 5
@@ -472,19 +472,26 @@ else:
         <style>
             .h-wrap {{ width:100%; height:550px; overflow-x:auto; background:transparent; position:relative; font-family:sans-serif; }}
             .h-container {{ position:relative; width:{final_width}px; height:100%; padding:0 50px; }}
+            
+            /* 橫向主軸：設在下方 400px 處 */
             .h-track {{ position:absolute; top:400px; left:40px; right:40px; height:4px; background:#00d2ff; box-shadow: 0 0 10px #00d2ff; border-radius:2px; }}
             .h-arrow {{ position:absolute; top:393px; right:25px; width:0; height:0; border-top:8px solid transparent; border-bottom:8px solid transparent; border-left:15px solid #00d2ff; filter:drop-shadow(2px 0 5px #00d2ff); }}
             
-            .tier-col {{ position:absolute; bottom:150px; display:flex; flex-direction:column-reverse; align-items:center; transform:translateX(-50%); gap:10px; }}
-            .v-line {{ width:2px; height:20px; background:#00d2ff; opacity:0.6; margin-bottom:-10px; }}
-            .h-speed {{ color:#00d2ff; font-weight:bold; font-size:14px; margin-top:10px; text-align:center; }}
+            /* 垂直堆疊容器：從線往上長 (translateY -100%) */
+            .tier-stack {{ position:absolute; top:400px; display:flex; flex-direction:column-reverse; align-items:center; transform:translateX(-50%) translateY(-100%); gap:8px; }}
             
-            .pkm-pill {{ position:relative; display:flex; align-items:center; background-color:#161920; border:2px solid; border-radius:40px; padding:2px 12px 2px 2px; cursor:pointer; box-shadow:0 3px 6px rgba(0,0,0,0.6); transition:0.2s; min-width:110px; }}
-            .pkm-pill.active {{ transform:scale(1.1); box-shadow:0 0 15px rgba(255,255,255,0.3); border-width:3px; z-index:100; }}
-            .v-img {{ width:40px; filter:drop-shadow(0 0 3px #000); }}
-            .pkm-info {{ margin-left:6px; color:#fff; font-size:11px; line-height:1.2; white-space:nowrap; text-align:left; font-weight:bold; }}
+            /* ✨ 關鍵的連接線：從軸線連到方塊 */
+            .v-connector {{ width:2px; height:40px; background:linear-gradient(to top, #00d2ff, rgba(0,210,255,0)); opacity:0.8; margin-top:-5px; }}
+            
+            /* 刻度數字：乖乖待在軸線下方 */
+            .h-speed-label {{ position:absolute; top:415px; transform:translateX(-50%); color:#00d2ff; font-weight:bold; font-size:15px; text-shadow:0 0 5px rgba(0,210,255,0.5); }}
+            
+            .pkm-pill {{ position:relative; display:flex; align-items:center; background-color:#161920; border:2px solid; border-radius:40px; padding:2px 12px 2px 2px; cursor:pointer; box-shadow:0 5px 15px rgba(0,0,0,0.5); transition:0.2s; min-width:115px; }}
+            .pkm-pill:hover, .pkm-pill.active {{ transform:scale(1.1); box-shadow:0 0 20px rgba(255,255,255,0.2); z-index:100; }}
+            .v-img {{ width:42px; filter:drop-shadow(0 0 3px #000); }}
+            .pkm-info {{ margin-left:8px; color:#fff; font-size:12px; line-height:1.2; white-space:nowrap; text-align:left; font-weight:bold; }}
 
-            #hud {{ display:none; position:fixed; top:80px; left:50%; transform:translateX(-50%); width:260px; background:rgba(20,24,30,0.98); border:2px solid; border-radius:12px; padding:15px; z-index:9999; box-shadow:0 15px 35px rgba(0,0,0,0.9); backdrop-filter:blur(8px); color:#fff; }}
+            #hud {{ display:none; position:fixed; top:50px; left:50%; transform:translateX(-50%); width:260px; background:rgba(20,24,30,0.98); border:2px solid; border-radius:12px; padding:15px; z-index:9999; box-shadow:0 15px 35px rgba(0,0,0,0.9); backdrop-filter:blur(8px); color:#fff; }}
             .hud-title {{ font-size:14px; font-weight:bold; border-bottom:1px solid #444; padding-bottom:8px; margin-bottom:8px; text-align:center; }}
             .hud-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:12px; }}
         </style>
@@ -501,14 +508,18 @@ else:
         """
         for node in visual_nodes:
             spd = node["speed"]
-            html_content += f'<div class="tier-col" style="left:{node["left_p"]}%;">'
+            # 速度數字
+            html_content += f'<div class="h-speed-label" style="left:{node["left_p"]}%;">{spd}</div>'
+            # 寶可夢堆疊
+            html_content += f'<div class="tier-stack" style="left:{node["left_p"]}%;">'
+            html_content += '<div class="v-connector"></div>' # 連接線在最下方
             for p in node["pokemons"]:
                 s, color = p["stats"], p['color']
                 glow = "box-shadow:0 0 10px gold; border-color:gold;" if p.get("is_team") else f"border-color:{color};"
                 team_star = "⭐ " if p.get("is_team") else ""
                 hud_data = f"data-title='{team_star}{p['name']} ({p['config']})<br><span style=\"color:{color};\">速度: {spd}</span>' data-color='{color}' data-hp='{s[0]}' data-atk='{s[1]}' data-def='{s[2]}' data-spa='{s[3]}' data-spd='{s[4]}' data-spe='{s[5]}'"
                 html_content += f'<div class="pkm-pill" style="{glow}" onclick="showHUD(this, event)" {hud_data}><img class="v-img" src="https://play.pokemonshowdown.com/sprites/gen5/{s[6]}.png"><div class="pkm-info" style="color:{color};">{team_star}{p["name"]}<br><span style="color:#aaa; font-weight:normal;">{p["config"]}</span></div></div>'
-            html_content += f'<div class="v-line"></div><div class="h-speed">{spd}</div></div>'
+            html_content += '</div>'
             
         html_content += f"{watermark_html}</div></div>"
         html_content += """<script>
