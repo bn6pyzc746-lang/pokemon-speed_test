@@ -314,113 +314,174 @@ pokedex = {
 }
 
 # ==========================================
-# 💾 記憶功能邏輯 (✨ 終極進化：URL 網址參數記憶法)
+# 💾 記憶功能邏輯 (✨ 終極進化：支援特調與長度記憶)
 # ==========================================
-def encode_data(data):
-    """將目前的隊伍壓縮成一串字串，存入網址"""
+def encode_data(data, axis_len):
+    """將目前的隊伍與軸線長度壓縮成一串字串，存入網址"""
     items = []
-    for p in data.get("my_team", []): items.append(f"{p['name']}|{p['config']}|1")
-    for p in data.get("compare_list", []): items.append(f"{p['name']}|{p['config']}|0")
-    return "~".join(items)
+    # 格式：名字|努力值|性格(1/0)|圍巾(1/0)|是否為隊伍(1/0)
+    for p in data.get("my_team", []): 
+        items.append(f"{p['name']}|{p.get('ev',252)}|{1 if p.get('nature',True) else 0}|{1 if p.get('scarf',False) else 0}|1")
+    for p in data.get("compare_list", []): 
+        items.append(f"{p['name']}|{p.get('ev',252)}|{1 if p.get('nature',True) else 0}|{1 if p.get('scarf',False) else 0}|0")
+    
+    pkm_str = "~".join(items)
+    # 將軸線長度放在最前面，用 @ 隔開
+    return f"{axis_len}@{pkm_str}"
 
 def decode_data(raw_str):
-    """從網址讀取字串，還原成寶可夢隊伍資料"""
-    app_data = {"my_team": [], "compare_list": []}
+    """從網址讀取字串，還原成詳細的寶可夢特調資料"""
+    # 預設回傳值，包含預設長度 2000
+    app_data = {"my_team": [], "compare_list": [], "axis_length": 2000}
     if not raw_str: return app_data
     
-    for item in raw_str.split("~"):
-        parts = item.split("|")
-        if len(parts) == 3:
-            name, config, is_team_str = parts[0], parts[1], parts[2]
-            if name in pokedex:
-                base_spe = pokedex[name][5]
-                neutral = int(base_spe + 52)
-                final = int(neutral * 1.1) if "極速" in config else neutral
-                if "圍巾" in config: final = int(final * 1.5)
-                if "無速" in config: final = int(base_spe + 20)
-                if "空間" in config: final = int((base_spe + 5) * 0.9)
-                
-                badge_color = "#e67e22" if "極速" in config else "#3498db" if "準速" in config else "#2ecc71" if "空間" in config else "#9b59b6" if "圍巾" in config else "#95a5a6"
-                p_dict = {"name": name, "config": config, "speed": final, "color": badge_color, "stats": pokedex[name], "is_team": (is_team_str == "1")}
-                
-                if is_team_str == "1": app_data["my_team"].append(p_dict)
-                else: app_data["compare_list"].append(p_dict)
+    try:
+        # 分拆長度部分與寶可夢部分
+        if "@" in raw_str:
+            ax_part, pkm_part = raw_str.split("@")
+            app_data["axis_length"] = int(ax_part)
+        else:
+            pkm_part = raw_str
+
+        if pkm_part:
+            for item in pkm_part.split("~"):
+                parts = item.split("|")
+                # 現在有 5 個欄位
+                if len(parts) == 5:
+                    name, ev, nat, scf, is_team = parts
+                    ev, nat, scf = int(ev), nat=="1", scf=="1"
+                    
+                    if name in pokedex:
+                        # 重新根據特調數值計算速度
+                        base_spe = pokedex[name][5]
+                        raw_speed = int(base_spe + 20.5 + (ev / 8))
+                        f_speed = int(raw_speed * 1.1) if nat else raw_speed
+                        if scf: f_speed = int(f_speed * 1.5)
+                        
+                        label = f"{ev}EV{'+' if nat else '-'}{'🧣' if scf else ''}"
+                        color = "#e67e22" if nat and ev >= 252 else "#3498db" if ev >= 252 else "#95a5a6"
+                        
+                        p_dict = {
+                            "name": name, "config": label, "speed": f_speed, "color": color, 
+                            "stats": pokedex[name], "is_team": (is_team == "1"),
+                            "ev": ev, "nature": nat, "scarf": scf
+                        }
+                        
+                        if is_team == "1": app_data["my_team"].append(p_dict)
+                        else: app_data["compare_list"].append(p_dict)
+    except:
+        pass # 解析失敗時至少回傳空清單
     return app_data
 
-# 初始化：一打開網頁，先看網址有沒有紀錄，有就讀取，沒有就給空清單
+# --- 初始化邏輯 ---
 if "app_data" not in st.session_state:
     if "team" in st.query_params:
         st.session_state.app_data = decode_data(st.query_params["team"])
     else:
-        st.session_state.app_data = {"my_team": [], "compare_list": []}
+        st.session_state.app_data = {"my_team": [], "compare_list": [], "axis_length": 2000}
 
-def save_data(data):
-    """更新畫面，並即時修改網址列"""
+def save_data(data, axis_len):
+    """更新畫面，並將「數據」與「長度」同時寫入網址列"""
     st.session_state.app_data = data
-    encoded_str = encode_data(data)
-    if encoded_str:
-        st.query_params["team"] = encoded_str
-    else:
-        if "team" in st.query_params:
-            del st.query_params["team"]
+    encoded_str = encode_data(data, axis_len)
+    st.query_params["team"] = encoded_str
 
 # ==========================================
-# 🎮 控制面板
+# 🎮 控制面板 (特調與網址記憶同步版)
 # ==========================================
 st.title("⚡ 寶可夢速度線戰術板")
 
 display_mode = st.radio("切換檢視模式：", ["🖥️ 電腦版 (橫向 X 軸)", "📱 手機版 (垂直 Y 軸)"], horizontal=True)
 
-col1, col2 = st.columns(2)
-with col1: selected_pkm = st.selectbox("🔍 選擇寶可夢：", list(pokedex.keys()))
-with col2: speed_config = st.selectbox("⚡ 配置：", ["極速 (252努力+性格)", "準速 (252努力)", "極速+講究圍巾", "無速 (0努力)", "空間最慢"])
+# ✨ 這裡先預覽目前的軸線長度，確保控制面板的按鈕能正確存檔
+# 如果 URL 裡有存長度就用 URL 的，否則預設 2000
+current_axis_len = st.session_state.app_data.get("axis_length", 2000)
+
+col1, col2 = st.columns([2, 3])
+with col1:
+    selected_pkm = st.selectbox("🔍 選擇寶可夢：", list(pokedex.keys()))
+with col2:
+    c1, c2, c3 = st.columns([2, 1, 1])
+    with c1:
+        ev_input = st.slider("🏃 速度努力值 (EV)", 0, 252, 252, step=4)
+    with c2:
+        is_plus_nature = st.checkbox("🔥 加速性格", value=True)
+    with c3:
+        has_scarf = st.checkbox("🧣 講究圍巾", value=False)
+
+# 計算最終速度
+base_spe = pokedex[selected_pkm][5]
+raw_speed = int(base_spe + 20.5 + (ev_input / 8))
+final_speed = int(raw_speed * 1.1) if is_plus_nature else raw_speed
+if has_scarf: final_speed = int(final_speed * 1.5)
+
+nature_text = "+" if is_plus_nature else "-"
+config_label = f"{ev_input}EV{nature_text}{'🧣' if has_scarf else ''}"
+badge_color = "#e67e22" if is_plus_nature and ev_input >= 252 else "#3498db" if ev_input >= 252 else "#95a5a6"
+
+new_pkm = {
+    "name": selected_pkm, "config": config_label, "speed": final_speed, 
+    "color": badge_color, "stats": pokedex[selected_pkm],
+    "ev": ev_input, "nature": is_plus_nature, "scarf": has_scarf
+}
 
 st.write("")
 col_btn1, col_btn2, col_btn3 = st.columns([2, 2, 1])
-
-base_spe = pokedex[selected_pkm][5]
-neutral = int(base_spe + 52)
-final = int(neutral * 1.1) if "極速" in speed_config else neutral
-if "圍巾" in speed_config: final = int(final * 1.5)
-if "無速" in speed_config: final = int(base_spe + 20)
-if "空間" in speed_config: final = int((base_spe + 5) * 0.9)
-
-badge_color = "#e67e22" if "極速" in speed_config else "#3498db" if "準速" in speed_config else "#2ecc71" if "空間" in speed_config else "#9b59b6" if "圍巾" in speed_config else "#95a5a6"
-
-new_pkm = {"name": selected_pkm, "config": speed_config.split(" ")[0], "speed": final, "color": badge_color, "stats": pokedex[selected_pkm]}
 
 with col_btn1:
     if st.button("⭐ 加我的隊伍"):
         if len(st.session_state.app_data["my_team"]) < 6:
             new_pkm["is_team"] = True
             st.session_state.app_data["my_team"].append(new_pkm)
-            save_data(st.session_state.app_data)
+            # ✨ 注意：save_data 現在需要傳入兩個參數
+            save_data(st.session_state.app_data, current_axis_len)
             st.rerun()
+
 with col_btn2:
     if st.button("➕ 加比較名單"):
         new_pkm["is_team"] = False
         st.session_state.app_data["compare_list"].append(new_pkm)
-        save_data(st.session_state.app_data)
-        st.rerun()
-with col_btn3:
-    if st.button("🗑️ 清空"):
-        st.session_state.app_data = {"my_team": [], "compare_list": []}
-        save_data(st.session_state.app_data)
+        save_data(st.session_state.app_data, current_axis_len)
         st.rerun()
 
+with col_btn3:
+    if st.button("🗑️ 清空"):
+        st.session_state.app_data = {"my_team": [], "compare_list": [], "axis_length": 2000}
+        save_data(st.session_state.app_data, 2000)
+        st.rerun()
+
+# ==========================================
+# 🛠️ 管理面板 (補回遺失的功能)
+# ==========================================
 with st.expander("🛠️ 管理名單與調整圖表比例", expanded=False):
-    axis_length = st.slider("📏 調整速度線長度/高度 (越長越不擠)", 800, 8000, 2000, step=100)
+    # ✨ Slider 同步網址裡的長度
+    axis_length = st.slider("📏 調整速度線長度/高度 (越長越不擠)", 800, 8000, 
+                             value=int(current_axis_len), step=100)
+    
+    # 如果 Slider 數值變動，立刻更新 URL
+    if axis_length != current_axis_len:
+        save_data(st.session_state.app_data, axis_length)
+
     st.markdown("---")
+    
     def render_list(list_key, title):
         st.write(f"**{title}**")
-        for i, item in enumerate(st.session_state.app_data[list_key]):
+        # 建立一個暫存列表，避免在迴圈中直接 pop 導致索引錯誤
+        current_list = st.session_state.app_data.get(list_key, [])
+        if not current_list:
+            st.caption("目前無資料")
+            
+        for i, item in enumerate(current_list):
             c1, c2 = st.columns([4, 1])
             c1.markdown(f"<div style='padding-top: 5px;'>{item['name']} ({item['config']}) - {item['speed']}</div>", unsafe_allow_html=True)
             if c2.button("❌", key=f"del_{list_key}_{i}"):
                 st.session_state.app_data[list_key].pop(i)
-                save_data(st.session_state.app_data)
+                # ✨ 刪除時也要同步更新網址與長度
+                save_data(st.session_state.app_data, axis_length)
                 st.rerun()
+
     render_list("my_team", "⭐ 我的隊伍")
+    st.write("")
     render_list("compare_list", "🔍 比較對象")
 
 # ==========================================
