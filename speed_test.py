@@ -387,44 +387,16 @@ def save_data(data, axis_len):
     st.query_params["team"] = encoded_str
 
 # ==========================================
-# 🎮 控制面板 (特調與網址記憶同步版)
+# 🎮 控制面板 (順序優化與即時儀表板版)
 # ==========================================
 st.title("⚡ 寶可夢速度線戰術板")
 
 display_mode = st.radio("切換檢視模式：", ["🖥️ 電腦版 (橫向 X 軸)", "📱 手機版 (垂直 Y 軸)"], horizontal=True)
 
-# ✨ 這裡先預覽目前的軸線長度，確保控制面板的按鈕能正確存檔
-# 如果 URL 裡有存長度就用 URL 的，否則預設 2000
+# ✨ 預先抓取軸線長度
 current_axis_len = st.session_state.app_data.get("axis_length", 2000)
 
-# 1. 先計算數值 (確保這段在顯示預覽之前)
-base_spe = pokedex[selected_pkm][5]
-raw_speed = int(base_spe + 20.5 + (ev_input / 8))
-final_speed = int(raw_speed * 1.1) if is_plus_nature else raw_speed
-if has_scarf: final_speed = int(final_speed * 1.5)
-
-# 2. ✨ 加入預覽儀表板
-# 我們用 st.columns 讓它跟按鈕排版更漂亮
-prev_col1, prev_col2 = st.columns([1, 1])
-
-with prev_col1:
-    # 顯示醒目的速度數字
-    st.metric(label="⚡ 當前計算速度", value=f"{final_speed} pt", delta=f"{final_speed - base_spe} (來自努力值/性格)")
-
-with prev_col2:
-    # 顯示目前的配置說明，讓你確認沒設錯
-    nature_icon = "📈 加速" if is_plus_nature else "😐 中性"
-    scarf_icon = "🧣 已裝備" if has_scarf else "❌ 未裝備"
-    st.markdown(f"""
-    <div style="background: rgba(0,210,255,0.1); padding: 10px; border-radius: 10px; border-left: 5px solid #00d2ff;">
-        <small>性格：{nature_icon}</small><br>
-        <small>道具：{scarf_icon}</small>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.write("") # 留點空隙
-
-# ... 後方的 col_btn1, col_btn2 (加入按鈕) 保持不變 ...
+# --- 第一步：先放輸入元件 (這樣 Python 才有變數可以計算) ---
 col1, col2 = st.columns([2, 3])
 with col1:
     selected_pkm = st.selectbox("🔍 選擇寶可夢：", list(pokedex.keys()))
@@ -437,15 +409,44 @@ with col2:
     with c3:
         has_scarf = st.checkbox("🧣 講究圍巾", value=False)
 
-# 計算最終速度
+# --- 第二步：進行數學計算 ---
 base_spe = pokedex[selected_pkm][5]
+# 等級 50 速度公式
 raw_speed = int(base_spe + 20.5 + (ev_input / 8))
 final_speed = int(raw_speed * 1.1) if is_plus_nature else raw_speed
-if has_scarf: final_speed = int(final_speed * 1.5)
+if has_scarf: 
+    final_speed = int(final_speed * 1.5)
 
+# 準備標籤與顏色
 nature_text = "+" if is_plus_nature else "-"
 config_label = f"{ev_input}EV{nature_text}{'🧣' if has_scarf else ''}"
 badge_color = "#e67e22" if is_plus_nature and ev_input >= 252 else "#3498db" if ev_input >= 252 else "#95a5a6"
+
+# --- 第三步：顯示「即時預覽儀表板」 (放在選單下方，按鈕上方) ---
+st.markdown("---") # 分隔線
+prev_col1, prev_col2 = st.columns([1, 1])
+
+with prev_col1:
+    st.metric(
+        label=f"⚡ {selected_pkm} 的即時速度", 
+        value=f"{final_speed} pt", 
+        delta=f"{final_speed - base_spe} (來自特調)",
+        delta_color="normal"
+    )
+
+with prev_col2:
+    nature_icon = "📈 加速性格" if is_plus_nature else "😐 中性性格"
+    scarf_icon = "🧣 講究圍巾：已裝備" if has_scarf else "❌ 講究圍巾：未裝備"
+    st.markdown(f"""
+    <div style="background: rgba(0,210,255,0.1); padding: 12px; border-radius: 10px; border-left: 5px solid #00d2ff; height: 85px;">
+        <div style="color: #00d2ff; font-weight: bold; font-size: 14px;">{nature_icon}</div>
+        <div style="color: #ecf0f1; font-size: 14px; margin-top: 5px;">{scarf_icon}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# --- 第四步：最後才是功能按鈕 ---
+st.write("")
+col_btn1, col_btn2, col_btn3 = st.columns([2, 2, 1])
 
 new_pkm = {
     "name": selected_pkm, "config": config_label, "speed": final_speed, 
@@ -453,15 +454,11 @@ new_pkm = {
     "ev": ev_input, "nature": is_plus_nature, "scarf": has_scarf
 }
 
-st.write("")
-col_btn1, col_btn2, col_btn3 = st.columns([2, 2, 1])
-
 with col_btn1:
     if st.button("⭐ 加我的隊伍"):
         if len(st.session_state.app_data["my_team"]) < 6:
             new_pkm["is_team"] = True
             st.session_state.app_data["my_team"].append(new_pkm)
-            # ✨ 注意：save_data 現在需要傳入兩個參數
             save_data(st.session_state.app_data, current_axis_len)
             st.rerun()
 
